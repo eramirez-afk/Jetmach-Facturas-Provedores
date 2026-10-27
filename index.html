@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   if (window.pdfjsLib) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -331,7 +332,7 @@
         <h2 class="text-2xl font-extrabold tracking-tight">Pagos</h2>
         <p class="text-sm" style="color:var(--muted)">Solo se pagan facturas con visto bueno de gerencia. Sesión de <span id="tesoreriaUser" class="font-bold"></span>.</p>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="exportCsv()">Exportar a Excel (CSV)</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportExcel()">Exportar a Excel</button>
     </div>
 
     <div id="tKpis" class="panel grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x"></div>
@@ -1038,6 +1039,53 @@ function doApprove(id) {
 function doReject(id) {
   const inv = findInv(id); if (!inv) return;
   inv.status = 'RECHAZADA'; save(); renderAll(); toast('Factura rechazada', 'info');
+}
+
+/* ===================== EXPORTAR / ELIMINAR (TESORERÍA) ===================== */
+const isoD = iso => { if (!iso) return ''; const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso); return isNaN(d) ? String(iso) : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const isoDT = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? String(iso) : `${isoD(iso)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+
+function exportRows() {
+  return invoices.map(i => {
+    const p = i.paymentInfo || {}, a = i.approval || {};
+    return {
+      'ID': i.id, 'Folio': i.folio, 'UUID': i.uuid || '', 'Proveedor': i.supplierName, 'RFC': i.rfc,
+      'Origen': i.origin === 'internacional' ? 'Internacional' : 'Nacional', 'País': i.country || '',
+      'Fecha de factura': isoD(i.invoiceDate), 'Fecha recibida': isoD(i.submissionDate),
+      'Orden de compra': i.poNumber || '', 'Matrícula': i.matricula || '', 'Concepto': i.concept || '',
+      'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
+      'Estatus': (STATUS[i.status] || {}).label || i.status,
+      'Visto bueno por': a.by || '', 'Fecha visto bueno': isoDT(a.at),
+      'Motivo de rechazo': i.rejectionReason || '',
+      'Fecha de pago': isoD(p.date), 'Método de pago': p.method || '', 'Banco de pago': p.bank || '',
+      'Comprobante de pago': p.ref || '', 'Pagado por': p.by || '', 'Notas del pago': p.notes || ''
+    };
+  });
+}
+function exportExcel() {
+  if (!invoices.length) { toast('No hay facturas para exportar', 'info'); return; }
+  const rows = exportRows(), name = `Paurema-Facturas-Proveedores_${todayStr()}`;
+  try {
+    if (!window.XLSX) throw new Error('XLSX no cargó');
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const heads = Object.keys(rows[0]);
+    ws['!cols'] = heads.map(h => ({ wch: Math.min(45, Math.max(h.length + 2, ...rows.map(r => String(r[h] ?? '').length + 2))) }));
+    ws['!autofilter'] = { ref: ws['!ref'] };
+    const mCol = heads.indexOf('Monto');
+    for (let r = 1; r <= rows.length; r++) { const c = ws[XLSX.utils.encode_cell({ r, c: mCol })]; if (c) c.z = '#,##0.00'; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
+    XLSX.writeFile(wb, name + '.xlsx');
+    toast(`Excel generado con ${rows.length} factura(s)`, 'success');
+  } catch (err) {
+    console.warn('Excel no disponible, se exporta CSV', err);
+    const heads = Object.keys(rows[0]), q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const csv = '\ufeff' + [heads.map(q).join(',')].concat(rows.map(r => heads.map(h => q(r[h])).join(','))).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = name + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+    toast('No se pudo generar .xlsx; se descargó en CSV (abre en Excel)', 'info');
+  }
 }
 
 /* ===================== REGISTRO DE PAGO ===================== */
