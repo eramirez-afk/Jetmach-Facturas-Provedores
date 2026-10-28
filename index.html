@@ -494,7 +494,7 @@
    CONFIGURACIÓN DEL SISTEMA
    ===================================================================== */
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbykA487GsBfc8Dd6nMXCjUDTUxRDHSsQwelzzNAjZc-JUi0rh-P2i12UwrtQOngwzxu/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAihAR2H_bBBx69lVOtoRyjxXDQYdBpwXAMKoNbn1x3KqbNbvyYOkRz/exec';
 
 const CONFIG = {
   companyName: 'Jet Mach Mexico, S.A. de C.V.',
@@ -1210,11 +1210,7 @@ async function submitPay(e) {
 
 /* ===================== GOOGLE DRIVE ===================== */
 const getDriveWebhookUrl = () => {
-  try {
-    return localStorage.getItem('portal_drive_webhook_url') || APPS_SCRIPT_URL;
-  } catch (e) {
-    return APPS_SCRIPT_URL;
-  }
+  return APPS_SCRIPT_URL;
 };
 function updateDriveStatusUI() {
   const url = getDriveWebhookUrl();
@@ -1249,14 +1245,3 @@ async function uploadToGoogleDrive(inv, pdf, xml) {
     return await res.json();
   } catch (err) { return { success: false, error: err.message }; }
 }
-
-/* ===================== INICIO ===================== */
-window.addEventListener('DOMContentLoaded', () => {
-  $('companyLine').textContent = CONFIG.companyName;
-  setOrigin('nacional'); setCurrency('MXN');
-  updateDriveStatusUI();
-  go('supplier');
-});
-</script>
-</body>
-</html>
