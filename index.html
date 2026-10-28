@@ -219,6 +219,10 @@
                 <input class="input" type="text" id="invoicePo" placeholder="Ej. OC-2026-88">
               </div>
               <div>
+                <label class="label" for="invoiceMatricula">Matrícula de la aeronave</label>
+                <input class="input" type="text" id="invoiceMatricula" maxlength="12" autocapitalize="characters" style="text-transform:uppercase" placeholder="Ej. XA-ABC">
+              </div>
+              <div>
                 <label class="label" for="invoiceDate">Fecha de la factura</label>
                 <input class="input" type="date" id="invoiceDate">
               </div>
@@ -842,7 +846,7 @@ async function submitInvoice(e) {
       id: autoFolio,
       origin, supplierName: v('supplierName'), rfc, email: v('supplierEmail'), folio,
       uuid: formMeta.uuid, receptorRfc: formMeta.receptorRfc,
-      poNumber: v('invoicePo'), amount, currency: formCurrency,
+      poNumber: v('invoicePo'), matricula: v('invoiceMatricula').toUpperCase(), amount, currency: formCurrency,
       country: origin === 'internacional' ? v('supplierCountry') : 'México',
       bankName: origin === 'internacional' ? v('supplierBank') : '',
       swift: origin === 'internacional' ? v('supplierSwift').toUpperCase() : '',
@@ -988,6 +992,7 @@ function renderDrawer() {
       <p><b>Folio Emisor:</b> ${esc(inv.folio)}</p>
       <p><b>Concepto:</b> ${esc(inv.concept)}</p>
       <p><b>Orden de compra:</b> ${esc(inv.poNumber || 'N/A')}</p>
+      <p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p>
     </div>`;
   
   let foot = '';
@@ -1042,7 +1047,7 @@ async function uploadToGoogleDrive(inv, pdf, xml) {
     const [pdfB64, xmlB64] = await Promise.all([fileToBase64(pdf), fileToBase64(xml)]);
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
       action: 'upload', folderId: CONFIG.driveFolderId,
-      invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber },
+      invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '' },
       pdf: pdf && pdfB64 ? { name: pdf.name, base64: pdfB64 } : null,
       xml: xml && xmlB64 ? { name: xml.name, base64: xmlB64 } : null
     }) });
