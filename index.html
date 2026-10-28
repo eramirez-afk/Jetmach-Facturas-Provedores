@@ -78,6 +78,10 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      <button onclick="loadInvoicesFromCloud(true)" class="btn btn-ghost btn-sm flex items-center gap-1">
+        <svg id="syncIcon" class="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span class="hidden sm:inline">Sincronizar</span>
+      </button>
       <nav id="mainNav" class="seg" aria-label="Áreas del portal"></nav>
       <button id="btnLogout" onclick="logout()" class="btn btn-ghost btn-sm hidden">Cerrar sesión</button>
     </div>
@@ -552,9 +556,11 @@ let origin = 'nacional', formCurrency = 'MXN';
 let files = { pdf: null, xml: null };
 let formMeta = { uuid: '', receptorRfc: '' };
 
-async function loadInvoicesFromCloud() {
+async function loadInvoicesFromCloud(manual = false) {
   const url = getDriveWebhookUrl();
   if (!url) return;
+  const icon = $('syncIcon');
+  if (icon) icon.classList.add('animate-spin');
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -566,9 +572,13 @@ async function loadInvoicesFromCloud() {
       invoices = out.invoices;
       saveLocalBackup();
       renderAll();
+      if (manual) toast('Facturas sincronizadas', 'success');
     }
   } catch (err) {
     console.warn('No se pudieron obtener las facturas desde Google Sheets:', err);
+    if (manual) toast('Error al conectar con Google Sheets', 'error');
+  } finally {
+    if (icon) icon.classList.remove('animate-spin');
   }
 }
 
@@ -588,6 +598,8 @@ async function syncStatusToCloud(inv) {
         history: inv.history
       })
     });
+    // Vuelve a sincronizar tras actualizar
+    setTimeout(() => loadInvoicesFromCloud(), 1200);
   } catch (err) {
     console.warn('Error al actualizar estatus en Google Sheets:', err);
   }
@@ -603,9 +615,8 @@ function save() {
 
 function resetDemo() {
   if (!confirm('Esto borra la vista local y recarga las facturas registradas en la nube. ¿Continuar?')) return;
-  loadInvoicesFromCloud();
+  loadInvoicesFromCloud(true);
   closeDrawer();
-  toast('Datos recargados desde la nube', 'info');
 }
 
 /* ===================== SESIONES ===================== */
@@ -901,6 +912,10 @@ async function submitInvoice(e) {
     $('formWrap').classList.add('hidden'); $('successCard').classList.remove('hidden');
     $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id;
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Cargar nuevamente para consolidar de la nube
+    setTimeout(() => loadInvoicesFromCloud(), 1500);
+
   } catch (err) {
     console.error(err); toast('No se pudo registrar la factura', 'error');
   } finally { btn.disabled = false; btn.textContent = 'Enviar a revisión'; }
@@ -1167,7 +1182,7 @@ function doDelete(id) {
   invoices = invoices.filter(i => i.id !== id);
   delete fileStore[id];
   save(); closeDrawer(); renderAll();
-  toast('Factura eliminada', 'success');
+  toast('Factura eliminada de la vista local', 'success');
 }
 
 /* ===================== REGISTRO DE PAGO ===================== */
@@ -1284,9 +1299,14 @@ window.addEventListener('DOMContentLoaded', () => {
   setOrigin('nacional'); setCurrency('MXN');
   updateDriveStatusUI();
   
-  // Sincronización automática de facturas desde la nube al cargar
+  // 1. Carga inicial
   loadInvoicesFromCloud();
   go('supplier');
+
+  // 2. Consulta automática periódica (Sincronización silenciosa cada 15 segundos)
+  setInterval(() => {
+    loadInvoicesFromCloud(false);
+  }, 15000);
 });
 </script>
 </body>
