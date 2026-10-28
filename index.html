@@ -1,515 +1,12 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portal de facturas y pagos a proveedores</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>
-  if (window.pdfjsLib) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-</script>
-<style>
-  :root{
-    --ink:#101c2b; --paper:#f1f3f5; --line:#d9dee5; --muted:#5b6777;
-    --brand:#0f6b78; --brand-dark:#0b525c; --brand-soft:#e3f1f3;
-  }
-  html{scroll-behavior:smooth}
-  body{font-family:'Schibsted Grotesk',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
-  .panel{background:#fff;border:1px solid var(--line);border-radius:10px}
-  .label{display:block;font-size:12.5px;font-weight:700;color:#3c4858;margin-bottom:6px}
-  .hint{font-size:12px;color:var(--muted)}
-  .input{width:100%;padding:10px 12px;border:1px solid #c5ccd6;border-radius:8px;background:#fff;font-size:14px;color:var(--ink);transition:border-color .15s,box-shadow .15s}
-  .input::placeholder{color:#9aa4b2}
-  .input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(15,107,120,.18)}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:700;border:1px solid transparent;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-  .btn:disabled{opacity:.5;cursor:not-allowed}
-  .btn-sm{padding:6px 12px;font-size:13px}
-  .btn-primary{background:var(--brand);color:#fff}
-  .btn-primary:hover:not(:disabled){background:var(--brand-dark)}
-  .btn-ghost{background:#fff;border-color:#c5ccd6;color:#2b3645}
-  .btn-ghost:hover:not(:disabled){background:#f3f5f7}
-  .btn-danger{background:#fff;border-color:#f0b4b4;color:#b42318}
-  .btn-danger:hover:not(:disabled){background:#fef3f2}
-  .chip{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;color:#3c4858;border:1px solid transparent;cursor:pointer;transition:background .15s}
-  .chip:hover{background:#eef1f4}
-  .chip[aria-pressed="true"]{background:var(--ink);color:#fff}
-  .chip .n{opacity:.65;margin-left:4px;font-weight:500}
-  .seg{display:inline-flex;background:#e6eaee;padding:3px;border-radius:10px;gap:2px}
-  .seg button{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;color:#4a5667;transition:background .15s,color .15s}
-  .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(16,28,43,.12)}
-  .dz{border:1.5px dashed #aab4c2;border-radius:10px;background:#fafbfc;transition:border-color .15s,background .15s}
-  .dz:hover,.dz.over{border-color:var(--brand);background:var(--brand-soft)}
-  .dz.done{border-style:solid;border-color:#7fb8c0;background:var(--brand-soft)}
-  .flash{box-shadow:0 0 0 3px rgba(15,107,120,.35)!important;background:#f2fafb!important}
-  th{font-size:12.5px;font-weight:700;color:#4a5667;text-align:left;padding:10px 16px;background:#f6f8fa;border-bottom:1px solid var(--line)}
-  td{padding:12px 16px;vertical-align:middle}
-  tbody tr{border-bottom:1px solid #edf0f3}
-  tbody tr.clickable{cursor:pointer}
-  tbody tr.clickable:hover{background:#f7fafb}
-  #drawer{transition:transform .25s ease}
-  .wp-line{height:2px;flex:1;background:repeating-linear-gradient(90deg,#aab4c2 0 6px,transparent 6px 12px)}
-  .wp-line.done{background:var(--brand)}
-  .wp-line.dark{background:repeating-linear-gradient(90deg,rgba(255,255,255,.45) 0 6px,transparent 6px 12px)}
-  .scroll::-webkit-scrollbar{width:8px;height:8px}
-  .scroll::-webkit-scrollbar-thumb{background:#c5ccd6;border-radius:99px}
-  :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
-</style>
-</head>
-<body class="min-h-screen flex flex-col">
-
-<!-- ===================== ENCABEZADO ===================== -->
-<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b" style="border-color:var(--line)">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-lg flex items-center justify-center text-white" style="background:var(--ink)">
-        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/></svg>
-      </div>
-      <div>
-        <h1 class="text-[15px] font-extrabold leading-tight">Facturas y pagos a proveedores</h1>
-        <p class="text-xs" style="color:var(--muted)" id="companyLine"></p>
-      </div>
-    </div>
-    <div class="flex items-center gap-2">
-      <nav id="mainNav" class="seg" aria-label="Áreas del portal"></nav>
-      <button id="btnLogout" onclick="logout()" class="btn btn-ghost btn-sm hidden">Cerrar sesión</button>
-    </div>
-  </div>
-</header>
-
-<main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
-
-  <!-- ===================== VISTA PROVEEDOR ===================== -->
-  <section id="view-supplier" class="space-y-6">
-
-    <div class="rounded-xl text-white px-6 py-7 sm:px-8" style="background:var(--ink)">
-      <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Radica tu factura</h2>
-      <p class="mt-2 text-[15px] max-w-2xl" style="color:#c3cdd9">Sube tu factura en pesos mexicanos o en dólares. Gerencia la revisa y, una vez que da su visto bueno, Tesorería realiza el pago.</p>
-
-      <div class="mt-7" aria-label="Proceso de pago">
-        <div class="flex items-center">
-          <span class="w-4 h-4 rounded-full bg-teal-300 shrink-0"></span><span class="wp-line dark mx-2"></span>
-          <span class="w-4 h-4 rounded-full bg-white shrink-0"></span><span class="wp-line dark mx-2"></span>
-          <span class="w-4 h-4 rounded-full bg-white shrink-0"></span>
-        </div>
-        <div class="mt-3 grid grid-cols-3 gap-4 text-sm">
-          <div><p class="font-bold">Tú subes la factura</p><p class="text-xs mt-0.5" style="color:#aab7c6">PDF y XML si es nacional, PDF del invoice si es internacional.</p></div>
-          <div class="text-center sm:text-left"><p class="font-bold">Gerencia da el visto bueno</p><p class="text-xs mt-0.5" style="color:#aab7c6">Revisa importes, orden de compra y datos fiscales.</p></div>
-          <div class="text-right sm:text-left"><p class="font-bold">Tesorería paga</p><p class="text-xs mt-0.5" style="color:#aab7c6">Transferencia SPEI en MXN o internacional en USD.</p></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="flex items-center justify-between flex-wrap gap-3">
-      <div class="seg" role="tablist">
-        <button id="supTabUpload" onclick="setSupTab('upload')" aria-pressed="true">Subir factura</button>
-        <button id="supTabTrack" onclick="setSupTab('track')" aria-pressed="false">Consultar estatus</button>
-      </div>
-    </div>
-
-    <!-- Subir factura -->
-    <div id="panelUpload">
-
-      <!-- Confirmación de envío -->
-      <div id="successCard" class="panel p-8 text-center hidden">
-        <div class="mx-auto w-12 h-12 rounded-full flex items-center justify-center text-white text-xl" style="background:var(--brand)">&#10003;</div>
-        <h3 class="mt-4 text-xl font-extrabold">Factura enviada a revisión</h3>
-        <p class="mt-1 text-sm" style="color:var(--muted)" id="successText"></p>
-        <p class="mt-4 text-sm">Código de seguimiento <span id="successCode" class="font-bold px-2 py-1 rounded" style="background:#eef1f4"></span></p>
-        <div class="mt-6 flex items-center justify-center gap-2">
-          <button class="btn btn-primary" onclick="newInvoice()">Subir otra factura</button>
-          <button class="btn btn-ghost" onclick="setSupTab('track')">Consultar estatus</button>
-        </div>
-      </div>
-
-      <div id="formWrap" class="panel overflow-hidden">
-        <div class="px-6 py-4 border-b flex flex-wrap items-center justify-between gap-3" style="border-color:var(--line)">
-          <div>
-            <h3 class="text-base font-extrabold" id="formTitle">Factura nacional</h3>
-            <p class="hint" id="formSubtitle">Sube el PDF y el XML; los datos se llenan solos y tú los confirmas.</p>
-          </div>
-          <div class="seg" role="group" aria-label="Tipo de factura">
-            <button id="segNacional" type="button" onclick="setOrigin('nacional')" aria-pressed="true">Nacional (CFDI)</button>
-            <button id="segInternacional" type="button" onclick="setOrigin('internacional')" aria-pressed="false">Internacional</button>
-          </div>
-        </div>
-
-        <form id="invoiceForm" onsubmit="submitInvoice(event)" class="p-6 space-y-6">
-
-          <!-- Archivos primero: de ahí salen los datos -->
-          <div>
-            <p class="label">1. Adjunta tus archivos</p>
-            <div class="grid md:grid-cols-2 gap-4">
-              <div id="pdfZone" class="dz relative p-5 text-center cursor-pointer"
-                   ondragover="dzOver(event,'pdfZone')" ondragleave="dzLeave(event,'pdfZone')" ondrop="dzDrop(event,'pdf')">
-                <input type="file" id="pdfInput" accept=".pdf,application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onPdfChosen(event)" aria-label="Factura en PDF">
-                <p id="pdfLabel" class="text-sm font-bold">Factura en PDF</p>
-                <p id="pdfSub" class="hint mt-1">Arrastra el archivo o haz clic. Leemos el texto para llenar los campos.</p>
-              </div>
-              <div id="xmlZone" class="dz relative p-5 text-center cursor-pointer"
-                   ondragover="dzOver(event,'xmlZone')" ondragleave="dzLeave(event,'xmlZone')" ondrop="dzDrop(event,'xml')">
-                <input type="file" id="xmlInput" accept=".xml,text/xml" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onXmlChosen(event)" aria-label="Comprobante XML o soporte fiscal">
-                <p id="xmlLabel" class="text-sm font-bold">Comprobante fiscal (XML)</p>
-                <p id="xmlSub" class="hint mt-1">Es la fuente más confiable: trae RFC, folio fiscal, importe y moneda.</p>
-              </div>
-            </div>
-
-            <div id="processing" class="hidden mt-3 flex items-center gap-2 text-sm font-semibold" style="color:var(--brand)">
-              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-              Leyendo el documento...
-            </div>
-
-            <div id="extractCard" class="hidden mt-3 rounded-lg p-4" style="background:var(--brand-soft);border:1px solid #b9dbe0">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <p class="text-sm font-bold" style="color:var(--brand-dark)" id="extractSource">Datos detectados</p>
-                <p class="text-xs truncate max-w-xs" style="color:var(--brand-dark)" id="extractFile"></p>
-              </div>
-              <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                <div><p class="hint">Emisor</p><p class="font-bold truncate" id="exSupplier">-</p></div>
-                <div><p class="hint">RFC / Tax ID</p><p class="font-bold truncate" id="exRfc">-</p></div>
-                <div><p class="hint">Folio</p><p class="font-bold truncate" id="exFolio">-</p></div>
-                <div><p class="hint">Monto</p><p class="font-bold truncate" id="exAmount">-</p></div>
-              </div>
-              <p id="extractWarn" class="hidden mt-3 text-sm font-semibold" style="color:#9a3412"></p>
-              <p class="hint mt-2">Revisa los datos de abajo antes de enviar; la lectura de un PDF puede equivocarse.</p>
-              <details id="rawTextBox" class="mt-2 text-xs hidden">
-                <summary class="cursor-pointer font-semibold" style="color:var(--brand-dark)">Ver el texto que se leyó del PDF</summary>
-                <textarea id="rawText" readonly rows="5" class="input mt-1 text-xs"></textarea>
-              </details>
-            </div>
-          </div>
-
-          <div>
-            <p class="label">2. Confirma los datos</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label class="label" for="supplierName" id="lblSupplier">Razón social</label>
-                <input class="input" type="text" id="supplierName" required placeholder="Ej. Soluciones Logísticas S.A. de C.V.">
-              </div>
-              <div>
-                <label class="label" for="supplierRfc" id="lblRfc">RFC</label>
-                <input class="input uppercase" type="text" id="supplierRfc" required placeholder="Ej. SLO180412XYZ">
-              </div>
-              <div>
-                <label class="label" for="supplierEmail">Correo para avisos</label>
-                <input class="input" type="email" id="supplierEmail" required placeholder="pagos@tuempresa.com">
-              </div>
-              <div>
-                <label class="label" for="invoiceFolio" id="lblFolio">Folio de la factura</label>
-                <input class="input" type="text" id="invoiceFolio" required placeholder="Ej. A-14902">
-              </div>
-              <div>
-                <label class="label" for="invoiceAmount">Monto total con impuestos</label>
-                <div class="flex gap-2">
-                  <input class="input" type="number" step="0.01" min="0.01" id="invoiceAmount" required placeholder="0.00">
-                  <div class="seg shrink-0" role="group" aria-label="Moneda">
-                    <button type="button" id="curMXN" onclick="setCurrency('MXN')" aria-pressed="true">MXN</button>
-                    <button type="button" id="curUSD" onclick="setCurrency('USD')" aria-pressed="false">USD</button>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label class="label" for="invoicePo">Orden de compra</label>
-                <input class="input" type="text" id="invoicePo" placeholder="Ej. OC-2026-88">
-              </div>
-              <div>
-                <label class="label" for="invoiceMatricula">Matrícula de la aeronave</label>
-                <input class="input" type="text" id="invoiceMatricula" maxlength="12" autocapitalize="characters" style="text-transform:uppercase" placeholder="Ej. XA-ABC">
-              </div>
-              <div>
-                <label class="label" for="invoiceDate">Fecha de la factura</label>
-                <input class="input" type="date" id="invoiceDate">
-              </div>
-              <div class="md:col-span-2">
-                <label class="label" for="invoiceConcept">Concepto</label>
-                <input class="input" type="text" id="invoiceConcept" required placeholder="Ej. Servicio de consultoría en TI, octubre">
-              </div>
-            </div>
-          </div>
-
-          <div id="intlBlock" class="hidden rounded-lg p-4" style="background:#eef6fb;border:1px solid #c5def0">
-            <p class="text-sm font-bold" style="color:#1d4e73">Datos para recibir tu transferencia internacional</p>
-            <div class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label class="label" for="supplierCountry">País</label>
-                <select class="input" id="supplierCountry">
-                  <option>Estados Unidos</option><option>Canadá</option><option>España</option><option>Alemania</option>
-                  <option>Reino Unido</option><option>Colombia</option><option>Brasil</option><option>China</option><option>Otro</option>
-                </select>
-              </div>
-              <div>
-                <label class="label" for="supplierBank">Banco beneficiario</label>
-                <input class="input" type="text" id="supplierBank" placeholder="Ej. Bank of America">
-              </div>
-              <div>
-                <label class="label" for="supplierSwift">SWIFT/BIC o routing</label>
-                <input class="input uppercase" type="text" id="supplierSwift" placeholder="Ej. BOFAUS3N">
-              </div>
-              <div>
-                <label class="label" for="supplierIban">Cuenta o IBAN</label>
-                <input class="input" type="text" id="supplierIban" placeholder="Ej. US39 1234 5678 9012">
-              </div>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <details class="text-sm">
-              <summary class="cursor-pointer font-semibold" style="color:var(--muted)">Cargar datos de ejemplo</summary>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoXml()">XML de un CFDI 4.0</button>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoPdf()">PDF de factura nacional</button>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoInternationalPdf()">Invoice en USD</button>
-              </div>
-            </details>
-            <div class="flex items-center gap-2">
-              <button type="button" class="btn btn-ghost" onclick="resetForm()">Limpiar</button>
-              <button type="submit" id="submitBtn" class="btn btn-primary">Enviar a revisión</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Consultar estatus -->
-    <div id="panelTrack" class="hidden space-y-4">
-      <div class="panel p-6">
-        <h3 class="text-base font-extrabold">Consulta el avance de tu factura</h3>
-        <p class="hint mt-0.5">Escribe el RFC o Tax ID y el folio exactamente como los capturaste al subirla.</p>
-        <form onsubmit="doTrack(event)" class="mt-4 grid sm:grid-cols-3 gap-3 items-end">
-          <div>
-            <label class="label" for="trackRfc">RFC o Tax ID</label>
-            <input class="input uppercase" type="text" id="trackRfc" required>
-          </div>
-          <div>
-            <label class="label" for="trackFolio">Folio</label>
-            <input class="input" type="text" id="trackFolio" required>
-          </div>
-          <button class="btn btn-primary" type="submit">Consultar</button>
-        </form>
-      </div>
-      <div id="trackResult" class="space-y-4"></div>
-    </div>
-  </section>
-
-  <!-- ===================== VISTA GERENCIA ===================== -->
-  <section id="view-gerente" class="space-y-5 hidden">
-    <div class="flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h2 class="text-2xl font-extrabold tracking-tight">Visto bueno de gerencia</h2>
-        <p class="text-sm" style="color:var(--muted)">Revisa cada factura y decide si pasa a pago. Sesión de <span id="gerenteUser" class="font-bold"></span>.</p>
-      </div>
-    </div>
-
-    <div id="gKpis" class="panel grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x" style="--tw-divide-opacity:1"></div>
-
-    <div class="panel overflow-hidden">
-      <div class="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b" style="border-color:var(--line)">
-        <input class="input lg:max-w-sm" type="search" id="gSearch" oninput="renderGerente()" placeholder="Buscar proveedor, RFC, folio u orden de compra">
-        <div id="gChips" class="flex flex-wrap gap-1"></div>
-      </div>
-      <div class="overflow-x-auto scroll">
-        <table class="w-full min-w-[920px]">
-          <thead><tr>
-            <th>Factura</th><th>Proveedor</th><th>Recibida</th><th>Concepto</th><th class="text-right">Monto</th><th>Estatus</th><th class="text-right">Acción</th>
-          </tr></thead>
-          <tbody id="gBody" class="text-sm"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===================== VISTA TESORERÍA ===================== -->
-  <section id="view-tesoreria" class="space-y-5 hidden">
-    <div class="flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h2 class="text-2xl font-extrabold tracking-tight">Pagos</h2>
-        <p class="text-sm" style="color:var(--muted)">Solo se pagan facturas con visto bueno de gerencia. Sesión de <span id="tesoreriaUser" class="font-bold"></span>.</p>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="exportExcel()">Exportar a Excel</button>
-    </div>
-
-    <div id="tKpis" class="panel grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x"></div>
-
-    <div class="panel px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <span class="text-lg" aria-hidden="true">&#128193;</span>
-        <div>
-          <p class="text-sm font-bold">Respaldo en Google Drive <span id="driveBadge" class="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">Sin configurar</span></p>
-          <p class="hint" id="driveText"></p>
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <button class="btn btn-ghost btn-sm" onclick="testDriveConnection()">Probar conexión</button>
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modalDrive')">Ajustes de Drive</button>
-      </div>
-    </div>
-
-    <div class="panel overflow-hidden">
-      <div class="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b" style="border-color:var(--line)">
-        <div class="flex flex-col sm:flex-row gap-2 flex-1">
-          <input class="input sm:max-w-sm" type="search" id="tSearch" oninput="renderTesoreria()" placeholder="Buscar proveedor, RFC, folio o referencia">
-          <select class="input sm:w-40" id="tCurrency" onchange="ui.tCurrency=this.value;renderTesoreria()" aria-label="Filtrar por moneda">
-            <option value="ALL">Todas las monedas</option><option value="MXN">Solo MXN</option><option value="USD">Solo USD</option>
-          </select>
-        </div>
-        <div id="tChips" class="flex flex-wrap gap-1"></div>
-      </div>
-      <div class="overflow-x-auto scroll">
-        <table class="w-full min-w-[920px]">
-          <thead><tr>
-            <th>Factura</th><th>Proveedor</th><th>Aprobada</th><th>Concepto</th><th class="text-right">Monto</th><th>Estatus</th><th class="text-right">Acción</th>
-          </tr></thead>
-          <tbody id="tBody" class="text-sm"></tbody>
-        </table>
-      </div>
-    </div>
-    <p class="text-xs text-center" style="color:var(--muted)"><button class="underline" onclick="resetDemo()">Restablecer datos de ejemplo</button></p>
-  </section>
-</main>
-
-<!-- ===================== PANEL LATERAL DE DETALLE ===================== -->
-<div id="drawerOverlay" class="fixed inset-0 z-40 hidden" style="background:rgba(16,28,43,.5)" onclick="closeDrawer()"></div>
-<aside id="drawer" class="fixed top-0 right-0 z-50 h-full w-full max-w-xl bg-white shadow-2xl flex flex-col translate-x-full" aria-hidden="true" role="dialog" aria-label="Detalle de factura">
-  <div class="px-6 py-4 border-b flex items-start justify-between gap-3" style="border-color:var(--line)">
-    <div>
-      <h3 class="text-lg font-extrabold" id="drawerTitle">Factura</h3>
-      <p class="hint" id="drawerSub"></p>
-    </div>
-    <button class="btn btn-ghost btn-sm" onclick="closeDrawer()" aria-label="Cerrar">Cerrar</button>
-  </div>
-  <div id="drawerBody" class="flex-1 overflow-y-auto scroll p-6 space-y-6 text-sm"></div>
-  <div id="drawerFoot" class="px-6 py-4 border-t bg-[#f6f8fa] space-y-3" style="border-color:var(--line)"></div>
-</aside>
-
-<!-- ===================== MODAL: REGISTRAR PAGO ===================== -->
-<div id="modalPay" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
-  <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
-      <h3 class="font-extrabold">Registrar pago</h3>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalPay')">Cancelar</button>
-    </div>
-    <form onsubmit="submitPay(event)" class="p-6 space-y-4 overflow-y-auto scroll">
-      <input type="hidden" id="payId">
-      <div id="paySummary" class="rounded-lg p-3 text-sm space-y-1" style="background:#f6f8fa;border:1px solid var(--line)"></div>
-      <div id="payBeneficiary"></div>
-      <div class="grid sm:grid-cols-2 gap-3">
-        <div>
-          <label class="label" for="payDate">Fecha de pago</label>
-          <input class="input" type="date" id="payDate" required>
-        </div>
-        <div>
-          <label class="label" for="payMethod">Método</label>
-          <select class="input" id="payMethod">
-            <option>Transferencia SPEI</option>
-            <option>Transferencia internacional (SWIFT)</option>
-            <option>Cheque nominativo</option>
-            <option>Tarjeta corporativa</option>
-          </select>
-        </div>
-        <div>
-          <label class="label" for="payBank">Banco desde el que pagas</label>
-          <input class="input" type="text" id="payBank" required placeholder="Ej. BBVA">
-        </div>
-        <div>
-          <label class="label" for="payRef">Número de comprobante de pago</label>
-          <input class="input" type="text" id="payRef" required placeholder="Ej. TR-994821038">
-        </div>
-      </div>
-      <div>
-        <label class="label" for="payNotes">Notas</label>
-        <input class="input" type="text" id="payNotes" placeholder="Opcional">
-      </div>
-      <div class="flex justify-end gap-2 pt-1">
-        <button type="button" class="btn btn-ghost" onclick="closeModal('modalPay')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Marcar como pagada</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- ===================== MODAL: ACCESO ===================== -->
-<div id="modalLogin" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
-  <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl overflow-hidden">
-    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
-      <h3 class="font-extrabold" id="loginTitle">Acceso</h3>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalLogin')">Cancelar</button>
-    </div>
-    <form onsubmit="submitLogin(event)" class="p-6 space-y-4">
-      <p class="text-sm" style="color:var(--muted)">Tu nombre quedará registrado en el historial de cada decisión.</p>
-      <div>
-        <label class="label" for="loginName">Tu nombre</label>
-        <input class="input" type="text" id="loginName" required autocomplete="name">
-      </div>
-      <div>
-        <label class="label" for="loginPin">Clave de acceso</label>
-        <input class="input" type="password" id="loginPin" required autocomplete="current-password">
-        <p id="loginError" class="hidden mt-1 text-sm font-semibold text-rose-700">La clave no es correcta. Inténtalo de nuevo.</p>
-      </div>
-      <button class="btn btn-primary w-full" type="submit">Entrar</button>
-    </form>
-  </div>
-</div>
-
-<!-- ===================== MODAL: GOOGLE DRIVE ===================== -->
-<div id="modalDrive" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
-  <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
-      <h3 class="font-extrabold">Respaldo en Google Drive</h3>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalDrive')">Cerrar</button>
-    </div>
-    <div class="p-6 space-y-4 overflow-y-auto scroll text-sm">
-      <p style="color:var(--muted)">Una página web no puede escribir en tu Drive con solo un enlace. Se usa un puente gratuito de Google Apps Script; pega aquí su URL.</p>
-      <div>
-        <label class="label" for="inputDriveWebhook">URL de la aplicación web (termina en /exec)</label>
-        <input class="input text-xs" type="url" id="inputDriveWebhook" placeholder="https://script.google.com/macros/s/.../exec">
-      </div>
-      <div>
-        <label class="label" for="inputDriveFolder">Carpeta de destino</label>
-        <input class="input text-xs bg-slate-100" type="text" id="inputDriveFolder" readonly>
-      </div>
-      <div id="driveTestResult" class="hidden rounded-lg p-3 text-sm"></div>
-      <ol class="list-decimal pl-5 space-y-1 text-[13px]" style="color:var(--muted)">
-        <li>Entra a <a class="underline font-semibold" style="color:var(--brand)" href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a> y crea un proyecto nuevo.</li>
-        <li>Pega el código del servidor.</li>
-        <li>Implementar, Nueva implementación, tipo Aplicación web.</li>
-        <li>Ejecutar como: tú. Quién tiene acceso: Cualquier usuario.</li>
-        <li>Autoriza los permisos y copia la URL que termina en <code>/exec</code>.</li>
-      </ol>
-    </div>
-    <div class="px-6 py-4 border-t bg-[#f6f8fa] flex justify-between gap-2" style="border-color:var(--line)">
-      <button class="btn btn-ghost" onclick="testDriveConnection()">Probar conexión</button>
-      <button class="btn btn-primary" onclick="saveDriveWebhookUrl()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== AVISOS ===================== -->
-<div id="toast" class="fixed bottom-5 right-5 z-[70] max-w-sm flex items-start gap-3 px-4 py-3 rounded-lg shadow-xl text-sm font-semibold text-white transition-all duration-300 opacity-0 translate-y-6 pointer-events-none" style="background:var(--ink)" role="status" aria-live="polite">
-  <span id="toastIcon" class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-teal-500">&#10003;</span>
-  <p id="toastMsg"></p>
-</div>
-
-<script>
-/* =====================================================================
-   CONFIGURACIÓN DEL SISTEMA
-   ===================================================================== */
-
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbykA487GsBfc8Dd6nMXCjUDTUxRDHSsQwelzzNAjZc-JUi0rh-P2i12UwrtQOngwzxu/exec';
-
 const CONFIG = {
   companyName: 'Jet Mach Mexico, S.A. de C.V.',
   companyRfc: 'JMM040707HL9',
   pins: { gerente: '246810', tesoreria: '159753' },
   driveFolderId: '1YDis04HIPM9rxU5De15Hu8syV5JeWUYz',
-  storageKey: 'portal_facturas_v2'
+  storageKey: 'portal_facturas_v2',
+  invoiceCounterKey: 'portal_facturas_v2_counter'
 };
+
 const RFC_RE = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 
 const STATUS = {
@@ -572,7 +69,7 @@ function seedInvoices() {
   const R = CONFIG.companyRfc;
   return [
     {
-      id: 'FAC-001', origin: 'nacional', supplierName: 'Soluciones Tecnológicas del Norte S.A. de C.V.', rfc: 'STN190520AB3',
+      id: 'FAC-0001', origin: 'nacional', supplierName: 'Soluciones Tecnológicas del Norte S.A. de C.V.', rfc: 'STN190520AB3',
       email: 'facturas@tecnonorte.com', folio: 'F-8942', uuid: '8F2B6C1A-3D4E-4F50-9A7B-1C2D3E4F5A6B', receptorRfc: R,
       poNumber: 'OC-2026-042', amount: 34800, currency: 'MXN', country: 'México', bankName: '', swift: '', iban: '',
       concept: 'Licenciamiento de software anual y soporte técnico en la nube', invoiceDate: '2026-10-22', submissionDate: '2026-10-23',
@@ -581,7 +78,7 @@ function seedInvoices() {
       history: [H('CREADA', '2026-10-23T10:15:00-06:00', 'Proveedor')]
     },
     {
-      id: 'FAC-002', origin: 'nacional', supplierName: 'Distribuidora Papelera & Suministros MX', rfc: 'DPS140211KZ8',
+      id: 'FAC-0002', origin: 'nacional', supplierName: 'Distribuidora Papelera & Suministros MX', rfc: 'DPS140211KZ8',
       email: 'cobranza@papeleramx.com', folio: 'B-1033', uuid: '3C9D1E7F-5A2B-4C8D-8E1F-0A9B7C6D5E4F', receptorRfc: R,
       poNumber: 'OC-2026-039', amount: 8520.5, currency: 'MXN', country: 'México', bankName: '', swift: '', iban: '',
       concept: 'Insumos de papelería para oficinas corporativas, septiembre', invoiceDate: '2026-10-19', submissionDate: '2026-10-20',
@@ -596,10 +93,33 @@ function loadInvoices() {
   try { const raw = localStorage.getItem(CONFIG.storageKey); if (raw) return JSON.parse(raw); } catch (e) {}
   return seedInvoices();
 }
+function setInvoiceCounter(value) {
+  try { localStorage.setItem(CONFIG.invoiceCounterKey, String(value)); } catch (e) { console.warn('No se pudo guardar el contador de facturas', e); }
+}
+function syncInvoiceCounter() {
+  const existing = invoices || [];
+  let max = 0;
+  existing.forEach(inv => {
+    const match = /^FAC-(\d+)$/i.exec(inv.id || '');
+    if (match) max = Math.max(max, Number(match[1]));
+  });
+  const stored = Number(localStorage.getItem(CONFIG.invoiceCounterKey));
+  const next = Math.max(max, Number.isFinite(stored) && stored > 0 ? stored : 0);
+  setInvoiceCounter(next);
+  return next;
+}
+function generateNextInvoiceId() {
+  const current = syncInvoiceCounter();
+  const next = current + 1;
+  setInvoiceCounter(next);
+  return `FAC-${String(next).padStart(4, '0')}`;
+}
 function save() { try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(invoices)); } catch (e) { console.warn('No se pudo guardar', e); } }
 function resetDemo() {
   if (!confirm('Esto borra las facturas actuales y restaura los datos de ejemplo. ¿Continuar?')) return;
-  invoices = seedInvoices(); save(); closeDrawer(); renderAll(); toast('Datos de ejemplo restaurados', 'info');
+  invoices = seedInvoices();
+  setInvoiceCounter(2);
+  save(); closeDrawer(); renderAll(); toast('Datos de ejemplo restaurados', 'info');
 }
 
 let invoices = loadInvoices();
@@ -608,6 +128,8 @@ const ui = { view: 'supplier', gFilter: 'PENDIENTE', tFilter: 'APROBADA', tCurre
 let origin = 'nacional', formCurrency = 'MXN';
 let files = { pdf: null, xml: null };
 let formMeta = { uuid: '', receptorRfc: '' };
+
+syncInvoiceCounter();
 
 /* ===================== SESIONES ===================== */
 function loadAuth() { try { return JSON.parse(sessionStorage.getItem('portal_auth')) || { gerente: null, tesoreria: null }; } catch (e) { return { gerente: null, tesoreria: null }; } }
@@ -653,7 +175,7 @@ function renderNav() {
   $('mainNav').innerHTML = items.map(([v, label, n, role]) => {
     const locked = role && !auth[role];
     return `<button onclick="go('${v}')" aria-pressed="${ui.view === v}" class="flex items-center gap-1.5">
-      ${locked ? '<svg class="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>' : ''}
+      ${locked ? '<svg class="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' : ''}
       <span>${label}</span>
       ${n ? `<span class="text-[11px] font-bold px-1.5 rounded-full bg-amber-100 text-amber-900">${n}</span>` : ''}
     </button>`;
@@ -860,7 +382,7 @@ async function submitInvoice(e) {
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
     const inv = {
-      id: 'FAC-' + Date.now().toString(36).toUpperCase(),
+      id: generateNextInvoiceId(),
       origin, supplierName: v('supplierName'), rfc, email: v('supplierEmail'), folio,
       uuid: formMeta.uuid, receptorRfc: formMeta.receptorRfc,
       poNumber: v('invoicePo'), matricula: v('invoiceMatricula').toUpperCase(), amount, currency: formCurrency,
@@ -904,279 +426,3 @@ function resetForm() {
   setOrigin(origin);
 }
 function newInvoice() { resetForm(); $('successCard').classList.add('hidden'); $('formWrap').classList.remove('hidden'); }
-
-/* ----- Seguimiento ----- */
-function routeHtml(inv) {
-  const reached = { PENDIENTE: 0, APROBADA: 1, PAGADA: 2, RECHAZADA: 0 }[inv.status];
-  return `<div class="flex items-center"><span class="w-4 h-4 rounded-full bg-teal-500"></span><span class="wp-line mx-2 ${reached > 0 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 1 ? 'bg-teal-500' : 'bg-gray-300'}"></span><span class="wp-line mx-2 ${reached > 1 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 2 ? 'bg-teal-500' : 'bg-gray-300'}"></span></div>`;
-}
-function doTrack(e) {
-  e.preventDefault();
-  const rfc = $('trackRfc').value.trim().toUpperCase(), folio = $('trackFolio').value.trim().toLowerCase();
-  const res = invoices.filter(i => i.rfc.toUpperCase() === rfc && (i.folio.toLowerCase() === folio || (i.uuid || '').toLowerCase() === folio));
-  const box = $('trackResult');
-  if (!res.length) {
-    box.innerHTML = `<div class="panel p-6 text-sm"><p class="font-bold">No encontramos esa factura.</p></div>`;
-    return;
-  }
-  box.innerHTML = res.map(inv => `<div class="panel p-6">
-    <div class="flex justify-between gap-3">
-      <div><p class="text-lg font-extrabold">Factura ${esc(inv.folio)}</p><p class="hint">${esc(inv.supplierName)}</p></div>
-      <div class="text-right"><p class="text-lg font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p><div>${statusBadge(inv.status, true)}</div></div>
-    </div>
-    <div class="mt-4">${routeHtml(inv)}</div>
-  </div>`).join('');
-}
-
-/* ===================== TABLAS ===================== */
-function computeChecks(inv) {
-  const c = [];
-  inv.poNumber ? c.push({ ok: true, t: `Orden de compra ${inv.poNumber}` }) : c.push({ ok: false, t: 'Sin orden de compra' });
-  return c;
-}
-function filterList(status, term, currency) {
-  term = (term || '').toLowerCase().trim();
-  return invoices.filter(i =>
-    (status === 'ALL' || i.status === status) &&
-    (currency === 'ALL' || i.currency === currency) &&
-    (!term || [i.supplierName, i.rfc, i.folio, i.concept].some(x => (x || '').toLowerCase().includes(term)))
-  );
-}
-function chipsHtml(current, setter, order) {
-  const labels = { PENDIENTE: 'Por revisar', APROBADA: 'Por pagar', PAGADA: 'Pagadas', RECHAZADA: 'Rechazadas', ALL: 'Todas' };
-  return order.map(s => {
-    const n = s === 'ALL' ? invoices.length : invoices.filter(i => i.status === s).length;
-    return `<button class="chip" aria-pressed="${current === s}" onclick="${setter}('${s}')">${labels[s]}<span class="n">${n}</span></button>`;
-  }).join('');
-}
-function kpi(title, count, list) {
-  const s = sumByCurrency(list);
-  return `<div class="p-5"><p class="text-sm font-bold" style="color:var(--muted)">${title}</p><p class="text-3xl font-extrabold mt-1">${count}</p><p class="text-sm font-semibold mt-1">${fmtMoney(s.MXN, 'MXN')}</p><p class="text-sm font-semibold">${fmtMoney(s.USD, 'USD')}</p></div>`;
-}
-function rowHtml(inv, role) {
-  return `<tr class="clickable" onclick="openDrawer('${inv.id}')">
-    <td><p class="font-bold">${esc(shortFolio(inv.folio))}</p></td>
-    <td><p class="font-semibold">${esc(inv.supplierName)}</p><p class="text-xs" style="color:var(--muted)">${esc(inv.rfc)}</p></td>
-    <td class="text-xs">${fmtDate(inv.submissionDate)}</td>
-    <td class="text-xs"><p class="truncate max-w-[200px]">${esc(inv.concept)}</p></td>
-    <td class="text-right"><p class="font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></td>
-    <td>${statusBadge(inv.status)}</td>
-    <td class="text-right"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDrawer('${inv.id}')">Ver</button></td>
-  </tr>`;
-}
-const emptyRow = '<tr><td colspan="7" class="text-center py-10" style="color:var(--muted)">No hay facturas.</td></tr>';
-
-function setGFilter(s) { ui.gFilter = s; renderGerente(); }
-function setTFilter(s) { ui.tFilter = s; renderTesoreria(); }
-
-function renderGerente() {
-  if (!auth.gerente) return;
-  $('gerenteUser').textContent = auth.gerente.name;
-  const by = s => invoices.filter(i => i.status === s);
-  $('gKpis').innerHTML = kpi('Esperan tu visto bueno', by('PENDIENTE').length, by('PENDIENTE')) + kpi('Aprobadas', by('APROBADA').length, by('APROBADA')) + kpi('Rechazadas', by('RECHAZADA').length, by('RECHAZADA'));
-  $('gChips').innerHTML = chipsHtml(ui.gFilter, 'setGFilter', ['PENDIENTE', 'APROBADA', 'RECHAZADA', 'PAGADA', 'ALL']);
-  const list = filterList(ui.gFilter, $('gSearch').value, 'ALL');
-  $('gBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'gerente')).join('') : emptyRow;
-}
-function renderTesoreria() {
-  if (!auth.tesoreria) return;
-  $('tesoreriaUser').textContent = auth.tesoreria.name;
-  const by = s => invoices.filter(i => i.status === s);
-  $('tKpis').innerHTML = kpi('Por pagar', by('APROBADA').length, by('APROBADA')) + kpi('Pagadas', by('PAGADA').length, by('PAGADA')) + kpi('En revisión', by('PENDIENTE').length, by('PENDIENTE'));
-  $('tChips').innerHTML = chipsHtml(ui.tFilter, 'setTFilter', ['APROBADA', 'PAGADA', 'ALL']);
-  const list = filterList(ui.tFilter, $('tSearch').value, ui.tCurrency);
-  $('tBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'tesoreria')).join('') : emptyRow;
-  updateDriveStatusUI();
-}
-
-/* ===================== DRAWER Y ACCIONES ===================== */
-function openDrawer(id) {
-  ui.drawerId = id; renderDrawer();
-  $('drawerOverlay').classList.remove('hidden');
-  $('drawer').classList.remove('translate-x-full');
-}
-function closeDrawer() {
-  ui.drawerId = null;
-  $('drawerOverlay').classList.add('hidden');
-  $('drawer').classList.add('translate-x-full');
-}
-function renderDrawer() {
-  const inv = findInv(ui.drawerId); if (!inv) { closeDrawer(); return; }
-  $('drawerTitle').textContent = `Factura ${shortFolio(inv.folio)}`;
-  $('drawerSub').textContent = `${inv.supplierName}`;
-  $('drawerBody').innerHTML = `
-    <div class="flex justify-between items-center">${statusBadge(inv.status)}<p class="text-2xl font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></div>
-    <div class="space-y-2 text-sm mt-4">
-      <p><b>Proveedor:</b> ${esc(inv.supplierName)}</p>
-      <p><b>RFC:</b> ${esc(inv.rfc)}</p>
-      <p><b>Concepto:</b> ${esc(inv.concept)}</p>
-      <p><b>Orden de compra:</b> ${esc(inv.poNumber || 'N/A')}</p>
-      <p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p>
-    </div>
-    ${inv.status === 'PAGADA' && inv.paymentInfo ? `<div class="rounded-lg p-3 text-sm space-y-1 mt-4" style="background:#ecfdf3;border:1px solid #abefc6">
-      <p class="font-bold">Pago registrado</p>
-      <p><b>Comprobante:</b> ${esc(inv.paymentInfo.ref)}</p>
-      <p><b>Fecha de pago:</b> ${fmtDate(inv.paymentInfo.date)}</p>
-      <p><b>Método:</b> ${esc(inv.paymentInfo.method)} &middot; ${esc(inv.paymentInfo.bank)}</p>
-      ${inv.paymentInfo.notes ? `<p><b>Notas:</b> ${esc(inv.paymentInfo.notes)}</p>` : ''}
-      <p class="text-xs" style="color:var(--muted)">Registrado por ${esc(inv.paymentInfo.by)}</p>
-    </div>` : ''}`;
-  
-  let foot = '';
-  if (ui.view === 'gerente' && inv.status === 'PENDIENTE') {
-    foot = `<div class="flex justify-end gap-2"><button class="btn btn-danger" onclick="doReject('${inv.id}')">Rechazar</button><button class="btn btn-primary" onclick="doApprove('${inv.id}')">Dar visto bueno</button></div>`;
-  } else if (ui.view === 'tesoreria' && inv.status === 'APROBADA') {
-    foot = `<button class="btn btn-primary w-full" onclick="openPay('${inv.id}')">Registrar pago</button>`;
-  }
-  if (ui.view === 'tesoreria') {
-    foot += `<button class="btn btn-danger w-full${foot ? ' mt-2' : ''}" onclick="doDelete('${inv.id}')">Eliminar factura</button>`;
-  }
-  $('drawerFoot').innerHTML = foot;
-  $('drawerFoot').classList.toggle('hidden', !foot);
-}
-
-function doApprove(id) {
-  const inv = findInv(id); if (!inv) return;
-  inv.status = 'APROBADA'; save(); renderAll(); toast('Visto bueno otorgado', 'success');
-}
-function doReject(id) {
-  const inv = findInv(id); if (!inv) return;
-  inv.status = 'RECHAZADA'; save(); renderAll(); toast('Factura rechazada', 'info');
-}
-
-/* ===================== EXPORTAR / ELIMINAR (TESORERÍA) ===================== */
-const isoD = iso => { if (!iso) return ''; const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso); return isNaN(d) ? String(iso) : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-const isoDT = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? String(iso) : `${isoD(iso)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
-
-function exportRows() {
-  return invoices.map(i => {
-    const p = i.paymentInfo || {}, a = i.approval || {};
-    return {
-      'ID': i.id, 'Folio': i.folio, 'UUID': i.uuid || '', 'Proveedor': i.supplierName, 'RFC': i.rfc,
-      'Origen': i.origin === 'internacional' ? 'Internacional' : 'Nacional', 'País': i.country || '',
-      'Fecha de factura': isoD(i.invoiceDate), 'Fecha recibida': isoD(i.submissionDate),
-      'Orden de compra': i.poNumber || '', 'Matrícula': i.matricula || '', 'Concepto': i.concept || '',
-      'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
-      'Estatus': (STATUS[i.status] || {}).label || i.status,
-      'Visto bueno por': a.by || '', 'Fecha visto bueno': isoDT(a.at),
-      'Motivo de rechazo': i.rejectionReason || '',
-      'Fecha de pago': isoD(p.date), 'Método de pago': p.method || '', 'Banco de pago': p.bank || '',
-      'Comprobante de pago': p.ref || '', 'Pagado por': p.by || '', 'Notas del pago': p.notes || ''
-    };
-  });
-}
-function exportExcel() {
-  if (!invoices.length) { toast('No hay facturas para exportar', 'info'); return; }
-  const rows = exportRows(), name = `Paurema-Facturas-Proveedores_${todayStr()}`;
-  try {
-    if (!window.XLSX) throw new Error('XLSX no cargó');
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const heads = Object.keys(rows[0]);
-    ws['!cols'] = heads.map(h => ({ wch: Math.min(45, Math.max(h.length + 2, ...rows.map(r => String(r[h] ?? '').length + 2))) }));
-    ws['!autofilter'] = { ref: ws['!ref'] };
-    const mCol = heads.indexOf('Monto');
-    for (let r = 1; r <= rows.length; r++) { const c = ws[XLSX.utils.encode_cell({ r, c: mCol })]; if (c) c.z = '#,##0.00'; }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
-    XLSX.writeFile(wb, name + '.xlsx');
-    toast(`Excel generado con ${rows.length} factura(s)`, 'success');
-  } catch (err) {
-    console.warn('Excel no disponible, se exporta CSV', err);
-    const heads = Object.keys(rows[0]), q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-    const csv = '\ufeff' + [heads.map(q).join(',')].concat(rows.map(r => heads.map(h => q(r[h])).join(','))).join('\r\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = name + '.csv'; document.body.appendChild(a); a.click(); a.remove();
-    toast('No se pudo generar .xlsx; se descargó en CSV (abre en Excel)', 'info');
-  }
-}
-function doDelete(id) {
-  const inv = findInv(id); if (!inv) return;
-  const extra = inv.status === 'PAGADA' ? '\n\nATENCIÓN: esta factura ya está PAGADA; se perderá también el registro del pago.' : '';
-  if (!confirm(`¿Eliminar la factura ${inv.folio} de ${inv.supplierName} por ${fmtMoney(inv.amount, inv.currency)}?${extra}\n\nEsta acción no se puede deshacer.`)) return;
-  invoices = invoices.filter(i => i.id !== id);
-  delete fileStore[id];
-  save(); closeDrawer(); renderAll();
-  toast('Factura eliminada', 'success');
-}
-
-/* ===================== REGISTRO DE PAGO ===================== */
-function openPay(id) {
-  const inv = findInv(id); if (!inv || inv.status !== 'APROBADA') return;
-  $('payId').value = id;
-  $('paySummary').innerHTML = `<p><b>Factura:</b> ${esc(shortFolio(inv.folio))}</p><p><b>Proveedor:</b> ${esc(inv.supplierName)}</p><p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p><p><b>Monto a pagar:</b> ${fmtMoney(inv.amount, inv.currency)}</p>`;
-  $('payBeneficiary').innerHTML = inv.origin === 'internacional'
-    ? `<div class="rounded-lg p-3 text-sm space-y-1" style="background:#eef6fb;border:1px solid #c5def0"><p class="font-bold">Datos del beneficiario</p><p>${esc(inv.supplierName)} &middot; ${esc(inv.country)}</p><p>Banco: ${esc(inv.bankName)} &middot; SWIFT: ${esc(inv.swift)}</p><p>IBAN/Cuenta: ${esc(inv.iban)}</p></div>`
-    : '';
-  $('payDate').value = todayStr();
-  $('payMethod').value = inv.origin === 'internacional' ? 'Transferencia internacional (SWIFT)' : 'Transferencia SPEI';
-  $('payBank').value = ''; $('payRef').value = ''; $('payNotes').value = '';
-  openModal('modalPay');
-  setTimeout(() => $('payBank').focus(), 80);
-}
-function submitPay(e) {
-  e.preventDefault();
-  const inv = findInv($('payId').value);
-  if (!inv || inv.status !== 'APROBADA') { toast('Esta factura ya no está por pagar', 'error'); closeModal('modalPay'); return; }
-  const ref = $('payRef').value.trim();
-  if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
-  const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
-  inv.paymentInfo = { date: $('payDate').value, method: $('payMethod').value, bank: $('payBank').value.trim(), ref, notes: $('payNotes').value.trim(), by };
-  inv.status = 'PAGADA';
-  inv.history = inv.history || [];
-  inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
-  save(); closeModal('modalPay'); renderAll();
-  toast('Factura marcada como pagada', 'success');
-}
-
-/* ===================== GOOGLE DRIVE ===================== */
-const getDriveWebhookUrl = () => {
-  try {
-    return localStorage.getItem('portal_drive_webhook_url') || APPS_SCRIPT_URL;
-  } catch (e) {
-    return APPS_SCRIPT_URL;
-  }
-};
-function updateDriveStatusUI() {
-  const url = getDriveWebhookUrl();
-  const b = $('driveBadge'); if (!b) return;
-  b.className = 'ml-1 text-xs font-bold px-2 py-0.5 rounded-full ' + (url ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900');
-  b.textContent = url ? 'Conectado' : 'Sin configurar';
-}
-function saveDriveWebhookUrl() {
-  const url = $('inputDriveWebhook').value.trim();
-  try { url ? localStorage.setItem('portal_drive_webhook_url', url) : localStorage.removeItem('portal_drive_webhook_url'); } catch (e) {}
-  updateDriveStatusUI(); closeModal('modalDrive'); toast('Ajustes guardados', 'success');
-}
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    if (!file) return resolve(null);
-    const r = new FileReader();
-    r.onload = () => resolve(typeof r.result === 'string' && r.result.includes(',') ? r.result.split(',')[1] : null);
-    r.onerror = reject; r.readAsDataURL(file);
-  });
-}
-async function uploadToGoogleDrive(inv, pdf, xml) {
-  const url = getDriveWebhookUrl(); if (!url) return { success: false };
-  try {
-    const [pdfB64, xmlB64] = await Promise.all([fileToBase64(pdf), fileToBase64(xml)]);
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
-      action: 'upload', folderId: CONFIG.driveFolderId,
-      invoiceData: { folio: inv.folio, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '' },
-      pdf: pdf && pdfB64 ? { name: pdf.name, base64: pdfB64 } : null,
-      xml: xml && xmlB64 ? { name: xml.name, base64: xmlB64 } : null
-    }) });
-    return await res.json();
-  } catch (err) { return { success: false, error: err.message }; }
-}
-
-/* ===================== INICIO ===================== */
-window.addEventListener('DOMContentLoaded', () => {
-  $('companyLine').textContent = CONFIG.companyName;
-  setOrigin('nacional'); setCurrency('MXN');
-  updateDriveStatusUI();
-  go('supplier');
-});
-</script>
-</body>
-</html>
