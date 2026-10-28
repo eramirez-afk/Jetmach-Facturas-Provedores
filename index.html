@@ -65,7 +65,7 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-<!-- ===================== ENCABEZADO ===================== -->
+<!-- ===================== ENCABEZADO Y NAVEGACIÓN ===================== -->
 <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b" style="border-color:var(--line)">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-3">
@@ -82,6 +82,7 @@
         <svg id="syncIcon" class="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         <span class="hidden sm:inline">Sincronizar</span>
       </button>
+      <!-- NAVEGACIÓN PRINCIPAL: PROVEEDORES, GERENCIA Y TESORERÍA -->
       <nav id="mainNav" class="seg" aria-label="Áreas del portal"></nav>
       <button id="btnLogout" onclick="logout()" class="btn btn-ghost btn-sm hidden">Cerrar sesión</button>
     </div>
@@ -264,14 +265,6 @@
           </div>
 
           <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <details class="text-sm">
-              <summary class="cursor-pointer font-semibold" style="color:var(--muted)">Cargar datos de ejemplo</summary>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoXml()">XML de un CFDI 4.0</button>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoPdf()">PDF de factura nacional</button>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoInternationalPdf()">Invoice en USD</button>
-              </div>
-            </details>
             <div class="flex items-center gap-2">
               <button type="button" class="btn btn-ghost" onclick="resetForm()">Limpiar</button>
               <button type="submit" id="submitBtn" class="btn btn-primary">Enviar a revisión</button>
@@ -346,7 +339,7 @@
         <span class="text-lg" aria-hidden="true">&#128193;</span>
         <div>
           <p class="text-sm font-bold">Respaldo en Google Drive <span id="driveBadge" class="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Conectado</span></p>
-          <p class="hint" id="driveText">Google Sheets + Drive configurados</p>
+          <p class="hint" id="driveText">Google Sheets + Drive configurados y sincronizados</p>
         </div>
       </div>
     </div>
@@ -433,7 +426,7 @@
   </div>
 </div>
 
-<!-- ===================== MODAL: ACCESO ===================== -->
+<!-- ===================== MODAL: ACCESO CON CLAVES ===================== -->
 <div id="modalLogin" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
   <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl overflow-hidden">
     <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
@@ -456,7 +449,7 @@
   </div>
 </div>
 
-<!-- ===================== AVISOS ===================== -->
+<!-- ===================== AVISOS TOAST ===================== -->
 <div id="toast" class="fixed bottom-5 right-5 z-[70] max-w-sm flex items-start gap-3 px-4 py-3 rounded-lg shadow-xl text-sm font-semibold text-white transition-all duration-300 opacity-0 translate-y-6 pointer-events-none" style="background:var(--ink)" role="status" aria-live="polite">
   <span id="toastIcon" class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-teal-500">&#10003;</span>
   <p id="toastMsg"></p>
@@ -464,7 +457,7 @@
 
 <script>
 /* =====================================================================
-   CONFIGURACIÓN DEL SISTEMA
+   CONFIGURACIÓN DEL SISTEMA Y CLAVES DE ACCESO
    ===================================================================== */
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAihAR2H_bBBx69lVOtoRyjxXDQYdBpwXAMKoNbn1x3KqbNbvyYOkRz/exec';
@@ -472,7 +465,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAi
 const CONFIG = {
   companyName: 'Jet Mach Mexico, S.A. de C.V.',
   companyRfc: 'JMM040707HL9',
-  pins: { gerente: '246810', tesoreria: '159753' },
+  pins: { gerente: '246810', tesoreria: '159753' }, // CLAVES DE ACCESO
   driveFolderId: '1YDis04HIPM9rxU5De15Hu8syV5JeWUYz',
   storageKey: 'portal_facturas_v2'
 };
@@ -577,7 +570,7 @@ function save() {
   saveLocalBackup();
 }
 
-/* ===================== SESIONES ===================== */
+/* ===================== SESIONES Y AUTENTICACIÓN ===================== */
 function loadAuth() { try { return JSON.parse(sessionStorage.getItem('portal_auth')) || { gerente: null, tesoreria: null }; } catch (e) { return { gerente: null, tesoreria: null }; } }
 function saveAuth() { try { sessionStorage.setItem('portal_auth', JSON.stringify(auth)); } catch (e) {} }
 let auth = loadAuth();
@@ -605,7 +598,7 @@ function logout() {
   auth = { gerente: null, tesoreria: null }; saveAuth(); closeDrawer(); go('supplier'); toast('Sesión cerrada', 'info');
 }
 
-/* ===================== NAVEGACIÓN ===================== */
+/* ===================== NAVEGACIÓN Y PESTAÑAS ===================== */
 function go(view) {
   if ((view === 'gerente' || view === 'tesoreria') && !auth[view]) { openLogin(view); return; }
   ui.view = view;
@@ -701,7 +694,7 @@ function showExtract(source, fileName, o) {
   $('extractCard').classList.remove('hidden');
 }
 
-/* ----- XML ----- */
+/* ----- LECTURA XML ----- */
 function processSupportFile(file) {
   const isXml = /\.xml$/i.test(file.name) || file.type === 'text/xml';
   if (origin === 'nacional' && !isXml) { toast('Para factura nacional adjunta el XML del CFDI', 'error'); return; }
@@ -748,7 +741,7 @@ function parseAndExtractXml(xml, fileName) {
   }
 }
 
-/* ----- PDF ----- */
+/* ----- LECTURA PDF ----- */
 async function processPdfFile(file) {
   files.pdf = file; setDropState('pdf', file);
   $('processing').classList.remove('hidden');
@@ -806,7 +799,7 @@ function extractFromPdfText(raw, fileName) {
   });
 }
 
-/* ----- Envío ----- */
+/* ----- ENVÍO DE FACTURA ----- */
 function findDuplicate(inv, ignoreId) {
   return invoices.find(o => o.id !== ignoreId && o.status !== 'RECHAZADA' && (
     (o.rfc.toUpperCase() === inv.rfc.toUpperCase() && o.folio.toLowerCase() === inv.folio.toLowerCase()) ||
@@ -884,7 +877,7 @@ function resetForm() {
 }
 function newInvoice() { resetForm(); $('successCard').classList.add('hidden'); $('formWrap').classList.remove('hidden'); }
 
-/* ----- Seguimiento ----- */
+/* ----- CONSULTAR ESTATUS ----- */
 function routeHtml(inv) {
   const reached = { PENDIENTE: 0, APROBADA: 1, PAGADA: 2, RECHAZADA: 0 }[inv.status];
   return `<div class="flex items-center"><span class="w-4 h-4 rounded-full bg-teal-500"></span><span class="wp-line mx-2 ${reached > 0 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 1 ? 'bg-teal-500' : 'bg-gray-300'}"></span><span class="wp-line mx-2 ${reached > 1 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 2 ? 'bg-teal-500' : 'bg-gray-300'}"></span></div>`;
@@ -907,7 +900,7 @@ function doTrack(e) {
   </div>`).join('');
 }
 
-/* ===================== TABLAS ===================== */
+/* ===================== TABLAS DE DATOS ===================== */
 function filterList(status, term, currency) {
   term = (term || '').toLowerCase().trim();
   return invoices.filter(i =>
@@ -1078,7 +1071,7 @@ async function doReject(id) {
   }
 }
 
-/* ===================== EXPORTAR A EXCEL (TESORERÍA) ===================== */
+/* ===================== EXPORTAR A EXCEL ===================== */
 const isoD = iso => { if (!iso) return ''; const d = new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso); return isNaN(d) ? String(iso) : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const isoDT = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? String(iso) : `${isoD(iso)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
 
@@ -1125,7 +1118,7 @@ function exportExcel() {
   }
 }
 
-/* ===================== ELIMINAR FACTURAS (TESORERÍA) ===================== */
+/* ===================== ELIMINAR FACTURAS ===================== */
 function doDelete(id) {
   const inv = findInv(id); if (!inv) return;
   const extra = inv.status === 'PAGADA' ? '\n\nATENCIÓN: esta factura ya está PAGADA; se perderá también el registro del pago.' : '';
@@ -1220,4 +1213,33 @@ async function uploadToGoogleDrive(inv, pdf, xml) {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       redirect: 'follow',
-      headers: {
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'upload', folderId: CONFIG.driveFolderId,
+        invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '',
+          origin: inv.origin, email: inv.email || '', invoiceDate: inv.invoiceDate || '', country: inv.country || '', bankName: inv.bankName || '', swift: inv.swift || '', iban: inv.iban || '' },
+        pdf: pdf && pdfB64 ? { name: pdf.name, base64: pdfB64 } : null,
+        xml: xml && xmlB64 ? { name: xml.name, base64: xmlB64 } : null
+      })
+    });
+    return await res.json();
+  } catch (err) { return { success: false, error: err.message }; }
+}
+
+/* ===================== INICIO ===================== */
+window.addEventListener('DOMContentLoaded', () => {
+  $('companyLine').textContent = CONFIG.companyName;
+  setOrigin('nacional'); setCurrency('MXN');
+  
+  // 1. Carga inicial desde la nube
+  loadInvoicesFromCloud();
+  go('supplier');
+
+  // 2. Consulta automática periódica en segundo plano cada 12 segundos
+  setInterval(() => {
+    loadInvoicesFromCloud(false);
+  }, 12000);
+});
+</script>
+</body>
+</html>
