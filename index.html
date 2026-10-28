@@ -628,13 +628,11 @@ function go(view) {
 function renderNav() {
   const pend = invoices.filter(i => i.status === 'PENDIENTE').length;
   const toPay = invoices.filter(i => i.status === 'APROBADA').length;
-  const items = [
-    ['supplier', 'Proveedores', 0], 
-    ['gerente', 'Gerencia', pend], 
-    ['tesoreria', 'Tesorería', toPay]
-  ];
-  $('mainNav').innerHTML = items.map(([v, label, n]) => {
+  const items = [['supplier', 'Proveedores', 0, null], ['gerente', 'Gerencia', pend, 'gerente'], ['tesoreria', 'Tesorería', toPay, 'tesoreria']];
+  $('mainNav').innerHTML = items.map(([v, label, n, role]) => {
+    const locked = role && !auth[role];
     return `<button onclick="go('${v}')" aria-pressed="${ui.view === v}" class="flex items-center gap-1.5">
+      ${locked ? '<svg class="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>' : ''}
       <span>${label}</span>
       ${n ? `<span class="text-[11px] font-bold px-1.5 rounded-full bg-amber-100 text-amber-900">${n}</span>` : ''}
     </button>`;
