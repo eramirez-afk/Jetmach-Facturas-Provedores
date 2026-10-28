@@ -562,21 +562,21 @@ async function loadInvoicesFromCloud(manual = false) {
   const icon = $('syncIcon');
   if (icon) icon.classList.add('animate-spin');
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'getInvoices' })
+    // Usamos redirección explícita y fallback GET
+    const res = await fetch(url + '?action=getInvoices', {
+      method: 'GET',
+      redirect: 'follow'
     });
     const out = await res.json();
     if (out && out.success && Array.isArray(out.invoices)) {
       invoices = out.invoices;
       saveLocalBackup();
       renderAll();
-      if (manual) toast('Facturas sincronizadas', 'success');
+      if (manual) toast('Facturas sincronizadas desde Sheets', 'success');
     }
   } catch (err) {
-    console.warn('No se pudieron obtener las facturas desde Google Sheets:', err);
-    if (manual) toast('Error al conectar con Google Sheets', 'error');
+    console.warn('Error al sincronizar con Google Sheets:', err);
+    if (manual) toast('Error al conectar con la hoja de cálculo', 'error');
   } finally {
     if (icon) icon.classList.remove('animate-spin');
   }
@@ -588,6 +588,7 @@ async function syncStatusToCloud(inv) {
   try {
     await fetch(url, {
       method: 'POST',
+      redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'updateStatus',
@@ -598,7 +599,6 @@ async function syncStatusToCloud(inv) {
         history: inv.history
       })
     });
-    // Vuelve a sincronizar tras actualizar
     setTimeout(() => loadInvoicesFromCloud(), 1200);
   } catch (err) {
     console.warn('Error al actualizar estatus en Google Sheets:', err);
@@ -869,7 +869,6 @@ async function submitInvoice(e) {
 
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
-    // Generación del Folio Consecutivo Interno basado en la nube/lista
     let maxNum = 0;
     invoices.forEach(i => {
       const match = (i.id || '').match(/FAC-(\d+)/);
@@ -913,7 +912,6 @@ async function submitInvoice(e) {
     $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id;
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Cargar nuevamente para consolidar de la nube
     setTimeout(() => loadInvoicesFromCloud(), 1500);
 
   } catch (err) {
@@ -1103,6 +1101,7 @@ async function doReject(id) {
 
     const res = await fetch(url, {
       method: 'POST',
+      redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'notifyRejection',
@@ -1152,7 +1151,7 @@ function exportExcel() {
   if (!invoices.length) { toast('No hay facturas para exportar', 'info'); return; }
   const rows = exportRows(), name = `Paurema-Facturas-Proveedores_${todayStr()}`;
   try {
-    if (!window.XLSX) throw new Error('XLSX no cargó');
+    if (!window.window.XLSX) throw new Error('XLSX no cargó');
     const ws = XLSX.utils.json_to_sheet(rows);
     const heads = Object.keys(rows[0]);
     ws['!cols'] = heads.map(h => ({ wch: Math.min(45, Math.max(h.length + 2, ...rows.map(r => String(r[h] ?? '').length + 2))) }));
@@ -1228,6 +1227,7 @@ async function submitPay(e) {
     if (!url) throw new Error('Sin URL de Apps Script');
     const res = await fetch(url, {
       method: 'POST',
+      redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         action: 'notifyPayment',
@@ -1282,7 +1282,7 @@ async function uploadToGoogleDrive(inv, pdf, xml) {
   const url = getDriveWebhookUrl(); if (!url) return { success: false };
   try {
     const [pdfB64, xmlB64] = await Promise.all([fileToBase64(pdf), fileToBase64(xml)]);
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
+    const res = await fetch(url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
       action: 'upload', folderId: CONFIG.driveFolderId,
       invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '',
         origin: inv.origin, email: inv.email || '', invoiceDate: inv.invoiceDate || '', country: inv.country || '', bankName: inv.bankName || '', swift: inv.swift || '', iban: inv.iban || '' },
@@ -1299,14 +1299,14 @@ window.addEventListener('DOMContentLoaded', () => {
   setOrigin('nacional'); setCurrency('MXN');
   updateDriveStatusUI();
   
-  // 1. Carga inicial
+  // Sincronización inicial
   loadInvoicesFromCloud();
   go('supplier');
 
-  // 2. Consulta automática periódica (Sincronización silenciosa cada 15 segundos)
+  // Consulta automática en segundo plano cada 12 segundos
   setInterval(() => {
     loadInvoicesFromCloud(false);
-  }, 15000);
+  }, 12000);
 });
 </script>
 </body>
