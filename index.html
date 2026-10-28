@@ -1010,6 +1010,9 @@ function renderDrawer() {
   } else if (ui.view === 'tesoreria' && inv.status === 'APROBADA') {
     foot = `<button class="btn btn-primary w-full" onclick="openPay('${inv.id}')">Registrar pago</button>`;
   }
+  if (ui.view === 'tesoreria') {
+    foot += `<button class="btn btn-danger w-full${foot ? ' mt-2' : ''}" onclick="doDelete('${inv.id}')">Eliminar factura</button>`;
+  }
   $('drawerFoot').innerHTML = foot;
   $('drawerFoot').classList.toggle('hidden', !foot);
 }
@@ -1068,6 +1071,17 @@ function exportExcel() {
     a.download = name + '.csv'; document.body.appendChild(a); a.click(); a.remove();
     toast('No se pudo generar .xlsx; se descargó en CSV (abre en Excel)', 'info');
   }
+}
+
+/* ===================== ELIMINAR FACTURAS (TESORERÍA) ===================== */
+function doDelete(id) {
+  const inv = findInv(id); if (!inv) return;
+  const extra = inv.status === 'PAGADA' ? '\n\nATENCIÓN: esta factura ya está PAGADA; se perderá también el registro del pago.' : '';
+  if (!confirm(`¿Eliminar el registro ${inv.id} (factura ${inv.folio}) de ${inv.supplierName} por ${fmtMoney(inv.amount, inv.currency)}?${extra}\n\nEsta acción no se puede deshacer.`)) return;
+  invoices = invoices.filter(i => i.id !== id);
+  delete fileStore[id];
+  save(); closeDrawer(); renderAll();
+  toast('Factura eliminada', 'success');
 }
 
 /* ===================== REGISTRO DE PAGO ===================== */
