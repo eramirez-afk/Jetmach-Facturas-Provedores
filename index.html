@@ -28,7 +28,7 @@ const HISTORY_LABEL = {
 
 /* ===================== UTILIDADES ===================== */
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const fmtNum = n => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtMoney = (a, c = 'MXN') => `${c === 'USD' ? 'US$' : '$'}${fmtNum(a)} ${c}`;
 const fmtDate = iso => {
@@ -175,7 +175,7 @@ function renderNav() {
   $('mainNav').innerHTML = items.map(([v, label, n, role]) => {
     const locked = role && !auth[role];
     return `<button onclick="go('${v}')" aria-pressed="${ui.view === v}" class="flex items-center gap-1.5">
-      ${locked ? '<svg class="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' : ''}
+      ${locked ? '<svg class="w-3.5 h-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v1"/><path d="M12 18h.01"/></svg>' : ''}
       <span>${label}</span>
       ${n ? `<span class="text-[11px] font-bold px-1.5 rounded-full bg-amber-100 text-amber-900">${n}</span>` : ''}
     </button>`;
@@ -248,7 +248,8 @@ function showExtract(source, fileName, o) {
   $('exSupplier').textContent = o.supplier || 'No detectado';
   $('exRfc').textContent = o.rfc || 'No detectado';
   $('exFolio').textContent = o.folio || 'No detectado';
-  $('exAmount').textContent = o.amount ? fmtMoney(o.amount, o.currency) : 'No detectado';
+  const amountValue = (o.amount !== undefined && o.amount !== null && o.amount !== '') ? o.amount : null;
+  $('exAmount').textContent = amountValue !== null ? fmtMoney(Number(amountValue), o.currency || 'MXN') : 'No detectado';
   $('rawText').value = o.raw || ''; $('rawTextBox').classList.toggle('hidden', !o.raw);
   const w = $('extractWarn');
   if (o.warn) { w.textContent = o.warn; w.classList.remove('hidden'); } else w.classList.add('hidden');
@@ -294,7 +295,7 @@ function parseAndExtractXml(xml, fileName) {
     if (recRfc && recRfc !== CONFIG.companyRfc) warn = (warn ? warn + ' ' : '') + `El XML está emitido al RFC ${recRfc}, no al de ${CONFIG.companyName}. Gerencia lo verá marcado.`;
 
     formMeta.uuid = uuid; formMeta.receptorRfc = recRfc;
-    showExtract('Datos leídos del CFDI (XML)', fileName, { supplier: name, rfc, folio, amount: total, currency: formCurrency, warn });
+    showExtract('Datos leídos del CFDI (XML)', fileName, { supplier: name, rfc, folio, amount: total, currency: moneda, warn });
     toast('Datos del XML cargados', 'success');
   } catch (err) {
     console.error(err);
@@ -334,17 +335,26 @@ function extractFromPdfText(raw, fileName) {
 
   if (isCfdi) {
     setOrigin('nacional');
+
+    const supplierMatch = text.match(/(?:Raz(?:o|ó)n Social|Nombre|Emisor|Proveedor)\s*[:\-]?\s*([A-ZÀ-ÿ0-9&.,()\/\- ]{4,120})/i);
+    if (supplierMatch && supplierMatch[1]) out.supplier = supplierMatch[1].replace(/\s+/g, ' ').trim();
+
     const RFC_G = '([A-ZÑ&]{3,4}\\d{6}[A-Z0-9]{3})';
-    out.rfc = ((text.match(new RegExp('RFC\\s*(?:del\\s*)?Emisor\\s*:?\\s*' + RFC_G, 'i')) || [])[1] || '').toUpperCase();
+    out.rfc = ((text.match(new RegExp('RFC\\s*(?:del\\s*)?(?:Emisor|Proveedor)\\s*:?\\s*' + RFC_G, 'i')) || [])[1] ||
+      (text.match(new RegExp('(?:R\\.?F\\.?C\\.?|RFC)\\s*:?\\s*' + RFC_G, 'i')) || [])[1] || '').toUpperCase();
+
     const uuidRaw = (text.match(/[0-9A-F]{8}\s?-\s?[0-9A-F]{4}\s?-\s?[0-9A-F]{4}\s?-\s?[0-9A-F]{4}\s?-\s?[0-9A-F]{12}/i) || [])[0];
     const uuid = uuidRaw ? uuidRaw.replace(/\s+/g, '').toUpperCase() : '';
     if (uuid) formMeta.uuid = uuid;
     out.folio = uuid || '';
+
     const totals = [...text.matchAll(new RegExp('(?:Importe\\s+Total|Total\\s+a\\s+pagar|Total)\\s*:?\\s*\\$?\\s*' + AMT, 'gi'))].map(m => toNum(m[1])).filter(n => n > 0);
     if (totals.length) out.amount = Math.max(...totals).toFixed(2);
     out.currency = /\bUSD\b|D[oó]lares/i.test(text) ? 'USD' : 'MXN';
   } else {
     setOrigin('internacional');
+    const supplierMatch = text.match(/(?:Vendor|Supplier|Company|Bill To|Beneficiary)\s*[:\-]?\s*([A-ZÀ-ÿ0-9&.,()\/\- ]{4,120})/i);
+    if (supplierMatch && supplierMatch[1]) out.supplier = supplierMatch[1].replace(/\s+/g, ' ').trim();
     out.folio = (text.match(/Invoice\s*(?:No\.?|Number|#)\s*[:#]?\s*([A-Za-z0-9\-]+)/i) || [])[1] || '';
     let amt = (text.match(new RegExp('(?:BALANCE\\s+DUE|TOTAL)\\s*:?\\s*\\$?\\s*' + AMT, 'i')) || [])[1];
     if (amt) out.amount = toNum(amt).toFixed(2);
