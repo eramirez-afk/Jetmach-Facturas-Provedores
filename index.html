@@ -427,6 +427,12 @@
             <option value="Variable">Variable</option>
           </select>
         </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="payBusinessLine">Línea de negocio</label>
+          <select class="input" id="payBusinessLine" required>
+            <option value="">Selecciona...</option><option value="Guarda">Guarda</option><option value="Handling">Handling</option><option value="AOC">AOC</option><option value="Corporativo">Corporativo</option>
+          </select>
+        </div>
       </div>
       <div>
         <label class="label" for="payNotes">Notas</label>
@@ -568,7 +574,8 @@ async function syncStatusToCloud(inv) {
         rejectionReason: inv.rejectionReason,
         paymentInfo: inv.paymentInfo,
         history: inv.history,
-        expenseType: inv.expenseType
+        expenseType: inv.expenseType,
+        businessLine: inv.businessLine
       })
     });
     setTimeout(() => loadInvoicesFromCloud(), 1200);
@@ -944,7 +951,7 @@ function rowHtml(inv, role) {
     <td class="text-xs">${fmtDate(inv.submissionDate)}</td>
     <td class="text-xs"><p class="truncate max-w-[200px]">${esc(inv.concept)}</p></td>
     <td class="text-right"><p class="font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></td>
-    <td>${statusBadge(inv.status)}${inv.expenseType ? `<div class="mt-1"><span class="text-xs font-bold px-2 py-0.5 rounded" style="background:#eef2ff;color:#3730a3">${esc(inv.expenseType)}</span></div>` : ''}</td>
+    <td>${statusBadge(inv.status)}${(inv.expenseType || inv.businessLine) ? `<div class="mt-1">${inv.expenseType ? `<span class="text-xs font-bold px-2 py-0.5 rounded mr-1" style="background:#eef2ff;color:#3730a3">${esc(inv.expenseType)}</span>` : ''}${inv.businessLine ? `<span class="text-xs font-bold px-2 py-0.5 rounded" style="background:#ecfdf3;color:#05603a">${esc(inv.businessLine)}</span>` : ''}</div>` : ''}</td>
     <td class="text-right"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDrawer('${inv.id}')">Ver</button></td>
   </tr>`;
 }
@@ -985,8 +992,9 @@ function closeDrawer() {
 }
 function renderDrawer() {
   const inv = findInv(ui.drawerId); if (!inv) { closeDrawer(); return; }
-  const prevSel = $('drawerExpType');
+  const prevSel = $('drawerExpType'), prevLn = $('drawerLine');
   const prevExp = prevSel && prevSel.dataset.inv === inv.id ? prevSel.value : null;
+  const prevLine = prevLn && prevLn.dataset.inv === inv.id ? prevLn.value : null;
   $('drawerTitle').textContent = `Registro ${inv.id} - Folio ${shortFolio(inv.folio)}`;
   $('drawerSub').textContent = `${inv.supplierName}`;
   $('drawerBody').innerHTML = `
@@ -1013,10 +1021,11 @@ function renderDrawer() {
       <p class="text-xs" style="color:var(--muted)">Registrado por ${esc(inv.paymentInfo.by)}</p>
     </div>` : ''}`;
   if ((ui.view === 'gerente' || ui.view === 'tesoreria') && inv.status === 'PAGADA') {
-    const t = prevExp !== null ? prevExp : (inv.expenseType || '');
+    const t = prevExp !== null ? prevExp : (inv.expenseType || ''), ln = prevLine !== null ? prevLine : (inv.businessLine || '');
+    const sel = (id, cur, list) => `<select class="input" id="${id}" data-inv="${esc(inv.id)}"><option value=""${cur === '' ? ' selected' : ''}>Sin clasificar</option>${list.map(o => `<option value="${o}"${cur === o ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
     $('drawerBody').insertAdjacentHTML('beforeend', ui.view === 'tesoreria'
-      ? `<div class="mt-4 text-sm"><label class="label" for="drawerExpType">Tipo de gasto</label><div class="flex gap-2"><select class="input" id="drawerExpType" data-inv="${esc(inv.id)}"><option value=""${t === '' ? ' selected' : ''}>Sin clasificar</option><option value="Fijo"${t === 'Fijo' ? ' selected' : ''}>Fijo</option><option value="Variable"${t === 'Variable' ? ' selected' : ''}>Variable</option></select><button class="btn btn-primary btn-sm" onclick="saveExpenseType('${inv.id}')">Guardar</button></div></div>`
-      : `<p class="text-sm mt-4"><b>Tipo de gasto:</b> ${esc(inv.expenseType || 'Sin clasificar')}</p>`);
+      ? `<div class="mt-4 text-sm space-y-2"><div><label class="label" for="drawerExpType">Tipo de gasto</label>${sel('drawerExpType', t, ['Fijo', 'Variable'])}</div><div><label class="label" for="drawerLine">Línea de negocio</label>${sel('drawerLine', ln, ['Guarda', 'Handling', 'AOC', 'Corporativo'])}</div><button class="btn btn-primary btn-sm" onclick="saveExpenseType('${inv.id}')">Guardar clasificación</button></div>`
+      : `<div class="text-sm mt-4 space-y-1"><p><b>Tipo de gasto:</b> ${esc(inv.expenseType || 'Sin clasificar')}</p><p><b>Línea de negocio:</b> ${esc(inv.businessLine || 'Sin clasificar')}</p></div>`);
   }
 
   let foot = '';
@@ -1110,6 +1119,7 @@ function exportRows() {
       'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
       'Estatus': (STATUS[i.status] || {}).label || i.status,
       'Tipo de gasto': i.expenseType || '',
+      'Línea de negocio': i.businessLine || '',
       'Visto bueno por': a.by || '', 'Fecha visto bueno': isoDT(a.at),
       'Motivo de rechazo': i.rejectionReason || '',
       'Fecha de pago': isoD(p.date), 'Método de pago': p.method || '', 'Banco de pago': p.bank || '',
@@ -1171,12 +1181,13 @@ async function doDelete(id) {
 /* ===================== TIPO DE GASTO (solo Tesorería puede cambiarlo) ===================== */
 function saveExpenseType(id) {
   const inv = findInv(id); if (!inv || !auth.tesoreria) return;
-  const sel = $('drawerExpType'); const v = sel ? sel.value : '';
+  const v = $('drawerExpType') ? $('drawerExpType').value : '', ln = $('drawerLine') ? $('drawerLine').value : '';
   if (v !== 'Fijo' && v !== 'Variable') { toast('Selecciona Fijo o Variable', 'error'); return; }
-  inv.expenseType = v;
+  if (!['Guarda', 'Handling', 'AOC', 'Corporativo'].includes(ln)) { toast('Selecciona la línea de negocio', 'error'); return; }
+  inv.expenseType = v; inv.businessLine = ln;
   save(); renderAll();
   syncStatusToCloud(inv);
-  toast('Tipo de gasto guardado', 'success');
+  toast('Clasificación guardada', 'success');
 }
 
 /* ===================== REGISTRO DE PAGO ===================== */
@@ -1191,6 +1202,7 @@ function openPay(id) {
   $('payMethod').value = inv.origin === 'internacional' ? 'Transferencia internacional (SWIFT)' : 'Transferencia SPEI';
   $('payBank').value = ''; $('payRef').value = ''; $('payNotes').value = '';
   $('payExpenseType').value = inv.expenseType || '';
+  $('payBusinessLine').value = inv.businessLine || '';
   openModal('modalPay');
   setTimeout(() => $('payBank').focus(), 80);
 }
@@ -1202,6 +1214,8 @@ async function submitPay(e) {
   if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
   const expenseType = $('payExpenseType').value;
   if (expenseType !== 'Fijo' && expenseType !== 'Variable') { toast('Selecciona si el gasto es Fijo o Variable', 'error'); $('payExpenseType').focus(); return; }
+  const businessLine = $('payBusinessLine').value;
+  if (!['Guarda', 'Handling', 'AOC', 'Corporativo'].includes(businessLine)) { toast('Selecciona la línea de negocio', 'error'); $('payBusinessLine').focus(); return; }
   const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
 
   const payDate = $('payDate').value;
@@ -1212,6 +1226,7 @@ async function submitPay(e) {
   inv.paymentInfo = { date: payDate, method: payMethod, bank: payBank, ref, notes: payNotes, by };
   inv.status = 'PAGADA';
   inv.expenseType = expenseType;
+  inv.businessLine = businessLine;
   inv.history = inv.history || [];
   inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
   
