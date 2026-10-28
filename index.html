@@ -417,7 +417,7 @@
           <input class="input" type="text" id="payBank" required placeholder="Ej. BBVA">
         </div>
         <div>
-          <label class="label" for="payRef">Referencia o clave de rastreo</label>
+          <label class="label" for="payRef">Número de comprobante de pago</label>
           <input class="input" type="text" id="payRef" required placeholder="Ej. TR-994821038">
         </div>
       </div>
@@ -993,7 +993,15 @@ function renderDrawer() {
       <p><b>Concepto:</b> ${esc(inv.concept)}</p>
       <p><b>Orden de compra:</b> ${esc(inv.poNumber || 'N/A')}</p>
       <p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p>
-    </div>`;
+    </div>
+    ${inv.status === 'PAGADA' && inv.paymentInfo ? `<div class="rounded-lg p-3 text-sm space-y-1 mt-4" style="background:#ecfdf3;border:1px solid #abefc6">
+      <p class="font-bold">Pago registrado</p>
+      <p><b>Comprobante:</b> ${esc(inv.paymentInfo.ref)}</p>
+      <p><b>Fecha de pago:</b> ${fmtDate(inv.paymentInfo.date)}</p>
+      <p><b>Método:</b> ${esc(inv.paymentInfo.method)} &middot; ${esc(inv.paymentInfo.bank)}</p>
+      ${inv.paymentInfo.notes ? `<p><b>Notas:</b> ${esc(inv.paymentInfo.notes)}</p>` : ''}
+      <p class="text-xs" style="color:var(--muted)">Registrado por ${esc(inv.paymentInfo.by)}</p>
+    </div>` : ''}`;
   
   let foot = '';
   if (ui.view === 'gerente' && inv.status === 'PENDIENTE') {
@@ -1012,6 +1020,35 @@ function doApprove(id) {
 function doReject(id) {
   const inv = findInv(id); if (!inv) return;
   inv.status = 'RECHAZADA'; save(); renderAll(); toast('Factura rechazada', 'info');
+}
+
+/* ===================== REGISTRO DE PAGO ===================== */
+function openPay(id) {
+  const inv = findInv(id); if (!inv || inv.status !== 'APROBADA') return;
+  $('payId').value = id;
+  $('paySummary').innerHTML = `<p><b>Registro:</b> ${esc(inv.id)}</p><p><b>Factura:</b> ${esc(shortFolio(inv.folio))}</p><p><b>Proveedor:</b> ${esc(inv.supplierName)}</p><p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p><p><b>Monto a pagar:</b> ${fmtMoney(inv.amount, inv.currency)}</p>`;
+  $('payBeneficiary').innerHTML = inv.origin === 'internacional'
+    ? `<div class="rounded-lg p-3 text-sm space-y-1" style="background:#eef6fb;border:1px solid #c5def0"><p class="font-bold">Datos del beneficiario</p><p>${esc(inv.supplierName)} &middot; ${esc(inv.country)}</p><p>Banco: ${esc(inv.bankName)} &middot; SWIFT: ${esc(inv.swift)}</p><p>IBAN/Cuenta: ${esc(inv.iban)}</p></div>`
+    : '';
+  $('payDate').value = todayStr();
+  $('payMethod').value = inv.origin === 'internacional' ? 'Transferencia internacional (SWIFT)' : 'Transferencia SPEI';
+  $('payBank').value = ''; $('payRef').value = ''; $('payNotes').value = '';
+  openModal('modalPay');
+  setTimeout(() => $('payBank').focus(), 80);
+}
+function submitPay(e) {
+  e.preventDefault();
+  const inv = findInv($('payId').value);
+  if (!inv || inv.status !== 'APROBADA') { toast('Esta factura ya no está por pagar', 'error'); closeModal('modalPay'); return; }
+  const ref = $('payRef').value.trim();
+  if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
+  const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
+  inv.paymentInfo = { date: $('payDate').value, method: $('payMethod').value, bank: $('payBank').value.trim(), ref, notes: $('payNotes').value.trim(), by };
+  inv.status = 'PAGADA';
+  inv.history = inv.history || [];
+  inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
+  save(); closeModal('modalPay'); renderAll();
+  toast('Factura marcada como pagada', 'success');
 }
 
 /* ===================== GOOGLE DRIVE ===================== */
