@@ -995,6 +995,10 @@ function renderDrawer() {
       <p><b>Orden de compra:</b> ${esc(inv.poNumber || 'N/A')}</p>
       <p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p>
     </div>
+    ${inv.status === 'RECHAZADA' && inv.rejectionReason ? `<div class="rounded-lg p-3 text-sm space-y-1 mt-4" style="background:#fef3f2;border:1px solid #f0b4b4;color:#b42318">
+      <p class="font-bold">Motivo del rechazo</p>
+      <p style="color:#101c2b">${esc(inv.rejectionReason)}</p>
+    </div>` : ''}
     ${inv.status === 'PAGADA' && inv.paymentInfo ? `<div class="rounded-lg p-3 text-sm space-y-1 mt-4" style="background:#ecfdf3;border:1px solid #abefc6">
       <p class="font-bold">Pago registrado</p>
       <p><b>Comprobante:</b> ${esc(inv.paymentInfo.ref)}</p>
@@ -1021,9 +1025,60 @@ function doApprove(id) {
   const inv = findInv(id); if (!inv) return;
   inv.status = 'APROBADA'; save(); renderAll(); toast('Visto bueno otorgado', 'success');
 }
-function doReject(id) {
+
+async function doReject(id) {
   const inv = findInv(id); if (!inv) return;
-  inv.status = 'RECHAZADA'; save(); renderAll(); toast('Factura rechazada', 'info');
+
+  const reason = prompt(`Escribe la razón por la cual se rechaza la factura ${inv.folio} de ${inv.supplierName}:`);
+  if (reason === null) return;
+  if (!reason.trim()) {
+    toast('Debes indicar una razón para poder rechazar la factura', 'error');
+    return;
+  }
+
+  inv.status = 'RECHAZADA';
+  inv.rejectionReason = reason.trim();
+  inv.history = inv.history || [];
+  inv.history.push(H('RECHAZADA', new Date().toISOString(), (auth.gerente && auth.gerente.name) || 'Gerencia', reason.trim()));
+
+  save();
+  renderAll();
+
+  if (!inv.email) {
+    toast('Factura rechazada (el proveedor no registró correo para avisos)', 'info');
+    return;
+  }
+
+  toast('Factura rechazada. Enviando notificación por correo...', 'info');
+
+  try {
+    const url = getDriveWebhookUrl();
+    if (!url) throw new Error('Sin URL de Apps Script');
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'notifyRejection',
+        rejectionData: {
+          email: inv.email,
+          supplierName: inv.supplierName,
+          autoFolio: inv.id,
+          folio: inv.folio,
+          matricula: inv.matricula || '',
+          amountFormatted: fmtMoney(inv.amount, inv.currency),
+          reason: reason.trim()
+        }
+      })
+    });
+
+    const out = await res.json();
+    if (out && out.success) toast('Correo de rechazo enviado al proveedor', 'success');
+    else throw new Error((out && out.error) || 'El script no confirmó el envío');
+  } catch (err) {
+    console.warn('Error enviando correo de rechazo:', err);
+    toast('Factura rechazada (no se pudo enviar el correo: ' + err.message + ')', 'info');
+  }
 }
 
 /* ===================== EXPORTAR A EXCEL (TESORERÍA) ===================== */
