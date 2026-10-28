@@ -334,6 +334,17 @@
       </div>
       <button class="btn btn-ghost btn-sm" onclick="exportExcel()">Exportar a Excel</button>
     </div>
+    <div id="tTabs" class="flex gap-1">
+      <button id="tabPagos" class="chip" aria-pressed="true" onclick="setTTab('pagos')">Pagos a proveedores</button>
+      <button id="tabIng" class="chip" aria-pressed="false" onclick="setTTab('ingresos')">Ingresos</button>
+    </div>
+    <div id="incomePanel" class="space-y-4 hidden">
+      <div class="flex justify-between items-center gap-2"><p class="text-sm" style="color:var(--muted)">Facturas que emite Jet Mach. Se guardan en Drive y en tu hoja de Google.</p><button class="btn btn-primary btn-sm" onclick="openIncomeNew()">Subir ingreso</button></div>
+      <div id="iKpis" class="panel grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x"></div>
+      <div class="panel overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left">
+        <thead><tr class="text-xs"><th class="p-3">ID</th><th>Folio</th><th>Cliente</th><th>Fecha</th><th>Vence</th><th>Matrícula / Línea</th><th class="text-right">Total</th><th>Estatus</th><th></th></tr></thead>
+        <tbody id="iBody" class="text-sm"></tbody></table></div></div>
+    </div>
 
     <div id="tKpis" class="panel grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x"></div>
 
@@ -387,6 +398,40 @@
 </aside>
 
 <!-- ===================== MODAL: REGISTRAR PAGO ===================== -->
+<div id="modalIncome" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
+  <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)"><h3 class="font-extrabold">Subir ingreso</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modalIncome')">Cancelar</button></div>
+    <form onsubmit="submitIncome(event)" class="p-6 space-y-3 overflow-y-auto scroll">
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div><label class="label" for="inXml">XML de la factura</label><input class="input" type="file" id="inXml" accept=".xml" onchange="onIncomeXml(this.files[0])"></div>
+        <div><label class="label" for="inPdf">PDF de la factura</label><input class="input" type="file" id="inPdf" accept=".pdf" onchange="onIncomePdf(this.files[0])"></div>
+      </div>
+      <p id="inWarn" class="text-sm hidden" style="color:#b42318"></p>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div><label class="label" for="inClient">Cliente</label><input class="input" id="inClient" required></div>
+        <div><label class="label" for="inRfc">RFC del cliente</label><input class="input" id="inRfc"></div>
+        <div><label class="label" for="inFolio">Folio</label><input class="input" id="inFolio" required></div>
+        <div><label class="label" for="inUuid">UUID</label><input class="input" id="inUuid" readonly></div>
+        <div><label class="label" for="inDate">Fecha de factura</label><input class="input" type="date" id="inDate" required></div>
+        <div><label class="label" for="inDue">Vencimiento</label><input class="input" type="date" id="inDue"></div>
+        <div><label class="label" for="inSub">Subtotal (sin IVA)</label><input class="input" type="number" step="0.01" id="inSub" required></div>
+        <div><label class="label" for="inTax">IVA</label><input class="input" type="number" step="0.01" id="inTax" value="0"></div>
+        <div><label class="label" for="inTotal">Total</label><input class="input" type="number" step="0.01" id="inTotal" required></div>
+        <div><label class="label" for="inCur">Moneda / tipo de cambio</label><div class="flex gap-2"><select class="input" id="inCur"><option>MXN</option><option>USD</option></select><input class="input" type="number" step="0.0001" id="inTc" value="1"></div></div>
+        <div><label class="label" for="inPlate">Matrícula (confírmala)</label><input class="input" id="inPlate" placeholder="Ej. N248BP"></div>
+        <div><label class="label" for="inLine">Línea de negocio</label><select class="input" id="inLine" required><option value="">Selecciona...</option><option value="Guarda">Guarda</option><option value="Handling">Handling</option><option value="AOC">AOC</option></select></div>
+      </div>
+      <div><label class="label" for="inConcept">Concepto</label><input class="input" id="inConcept"></div>
+      <button id="inSubmit" class="btn btn-primary w-full" type="submit">Guardar ingreso</button>
+    </form>
+  </div>
+</div>
+<div id="modalIncomeView" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
+  <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)"><h3 class="font-extrabold" id="ivTitle">Ingreso</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('modalIncomeView')">Cerrar</button></div>
+    <div class="p-6 space-y-3 overflow-y-auto scroll text-sm" id="ivBody"></div>
+  </div>
+</div>
 <div id="modalPay" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
   <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
     <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
@@ -425,12 +470,6 @@
             <option value="">Selecciona...</option>
             <option value="Fijo">Fijo</option>
             <option value="Variable">Variable</option>
-          </select>
-        </div>
-        <div class="sm:col-span-2">
-          <label class="label" for="payBusinessLine">Línea de negocio</label>
-          <select class="input" id="payBusinessLine" required>
-            <option value="">Selecciona...</option><option value="Guarda">Guarda</option><option value="Handling">Handling</option><option value="AOC">AOC</option><option value="Corporativo">Corporativo</option>
           </select>
         </div>
       </div>
@@ -480,7 +519,7 @@
    CONFIGURACIÓN DEL SISTEMA Y CLAVES DE ACCESO
    ===================================================================== */
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAihAR2H_bBBx69lVOtoRyjxXDQYdBpwXAMKoNbn1x3KqbNbvyYOkRz/exec';
+const APPS_SCRIPT_URL = 'PEGA_AQUI_LA_URL_DE_PRUEBA'; // <-- URL /exec del script de PRUEBA (no la de producción)
 
 const CONFIG = {
   companyName: 'Jet Mach Mexico, S.A. de C.V.',
@@ -574,8 +613,7 @@ async function syncStatusToCloud(inv) {
         rejectionReason: inv.rejectionReason,
         paymentInfo: inv.paymentInfo,
         history: inv.history,
-        expenseType: inv.expenseType,
-        businessLine: inv.businessLine
+        expenseType: inv.expenseType
       })
     });
     setTimeout(() => loadInvoicesFromCloud(), 1200);
@@ -951,7 +989,7 @@ function rowHtml(inv, role) {
     <td class="text-xs">${fmtDate(inv.submissionDate)}</td>
     <td class="text-xs"><p class="truncate max-w-[200px]">${esc(inv.concept)}</p></td>
     <td class="text-right"><p class="font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></td>
-    <td>${statusBadge(inv.status)}${(inv.expenseType || inv.businessLine) ? `<div class="mt-1">${inv.expenseType ? `<span class="text-xs font-bold px-2 py-0.5 rounded mr-1" style="background:#eef2ff;color:#3730a3">${esc(inv.expenseType)}</span>` : ''}${inv.businessLine ? `<span class="text-xs font-bold px-2 py-0.5 rounded" style="background:#ecfdf3;color:#05603a">${esc(inv.businessLine)}</span>` : ''}</div>` : ''}</td>
+    <td>${statusBadge(inv.status)}${inv.expenseType ? `<div class="mt-1"><span class="text-xs font-bold px-2 py-0.5 rounded" style="background:#eef2ff;color:#3730a3">${esc(inv.expenseType)}</span></div>` : ''}</td>
     <td class="text-right"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDrawer('${inv.id}')">Ver</button></td>
   </tr>`;
 }
@@ -992,9 +1030,8 @@ function closeDrawer() {
 }
 function renderDrawer() {
   const inv = findInv(ui.drawerId); if (!inv) { closeDrawer(); return; }
-  const prevSel = $('drawerExpType'), prevLn = $('drawerLine');
+  const prevSel = $('drawerExpType');
   const prevExp = prevSel && prevSel.dataset.inv === inv.id ? prevSel.value : null;
-  const prevLine = prevLn && prevLn.dataset.inv === inv.id ? prevLn.value : null;
   $('drawerTitle').textContent = `Registro ${inv.id} - Folio ${shortFolio(inv.folio)}`;
   $('drawerSub').textContent = `${inv.supplierName}`;
   $('drawerBody').innerHTML = `
@@ -1021,11 +1058,10 @@ function renderDrawer() {
       <p class="text-xs" style="color:var(--muted)">Registrado por ${esc(inv.paymentInfo.by)}</p>
     </div>` : ''}`;
   if ((ui.view === 'gerente' || ui.view === 'tesoreria') && inv.status === 'PAGADA') {
-    const t = prevExp !== null ? prevExp : (inv.expenseType || ''), ln = prevLine !== null ? prevLine : (inv.businessLine || '');
-    const sel = (id, cur, list) => `<select class="input" id="${id}" data-inv="${esc(inv.id)}"><option value=""${cur === '' ? ' selected' : ''}>Sin clasificar</option>${list.map(o => `<option value="${o}"${cur === o ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+    const t = prevExp !== null ? prevExp : (inv.expenseType || '');
     $('drawerBody').insertAdjacentHTML('beforeend', ui.view === 'tesoreria'
-      ? `<div class="mt-4 text-sm space-y-2"><div><label class="label" for="drawerExpType">Tipo de gasto</label>${sel('drawerExpType', t, ['Fijo', 'Variable'])}</div><div><label class="label" for="drawerLine">Línea de negocio</label>${sel('drawerLine', ln, ['Guarda', 'Handling', 'AOC', 'Corporativo'])}</div><button class="btn btn-primary btn-sm" onclick="saveExpenseType('${inv.id}')">Guardar clasificación</button></div>`
-      : `<div class="text-sm mt-4 space-y-1"><p><b>Tipo de gasto:</b> ${esc(inv.expenseType || 'Sin clasificar')}</p><p><b>Línea de negocio:</b> ${esc(inv.businessLine || 'Sin clasificar')}</p></div>`);
+      ? `<div class="mt-4 text-sm"><label class="label" for="drawerExpType">Tipo de gasto</label><div class="flex gap-2"><select class="input" id="drawerExpType" data-inv="${esc(inv.id)}"><option value=""${t === '' ? ' selected' : ''}>Sin clasificar</option><option value="Fijo"${t === 'Fijo' ? ' selected' : ''}>Fijo</option><option value="Variable"${t === 'Variable' ? ' selected' : ''}>Variable</option></select><button class="btn btn-primary btn-sm" onclick="saveExpenseType('${inv.id}')">Guardar</button></div></div>`
+      : `<p class="text-sm mt-4"><b>Tipo de gasto:</b> ${esc(inv.expenseType || 'Sin clasificar')}</p>`);
   }
 
   let foot = '';
@@ -1119,7 +1155,6 @@ function exportRows() {
       'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
       'Estatus': (STATUS[i.status] || {}).label || i.status,
       'Tipo de gasto': i.expenseType || '',
-      'Línea de negocio': i.businessLine || '',
       'Visto bueno por': a.by || '', 'Fecha visto bueno': isoDT(a.at),
       'Motivo de rechazo': i.rejectionReason || '',
       'Fecha de pago': isoD(p.date), 'Método de pago': p.method || '', 'Banco de pago': p.bank || '',
@@ -1181,13 +1216,12 @@ async function doDelete(id) {
 /* ===================== TIPO DE GASTO (solo Tesorería puede cambiarlo) ===================== */
 function saveExpenseType(id) {
   const inv = findInv(id); if (!inv || !auth.tesoreria) return;
-  const v = $('drawerExpType') ? $('drawerExpType').value : '', ln = $('drawerLine') ? $('drawerLine').value : '';
+  const sel = $('drawerExpType'); const v = sel ? sel.value : '';
   if (v !== 'Fijo' && v !== 'Variable') { toast('Selecciona Fijo o Variable', 'error'); return; }
-  if (!['Guarda', 'Handling', 'AOC', 'Corporativo'].includes(ln)) { toast('Selecciona la línea de negocio', 'error'); return; }
-  inv.expenseType = v; inv.businessLine = ln;
+  inv.expenseType = v;
   save(); renderAll();
   syncStatusToCloud(inv);
-  toast('Clasificación guardada', 'success');
+  toast('Tipo de gasto guardado', 'success');
 }
 
 /* ===================== REGISTRO DE PAGO ===================== */
@@ -1202,7 +1236,6 @@ function openPay(id) {
   $('payMethod').value = inv.origin === 'internacional' ? 'Transferencia internacional (SWIFT)' : 'Transferencia SPEI';
   $('payBank').value = ''; $('payRef').value = ''; $('payNotes').value = '';
   $('payExpenseType').value = inv.expenseType || '';
-  $('payBusinessLine').value = inv.businessLine || '';
   openModal('modalPay');
   setTimeout(() => $('payBank').focus(), 80);
 }
@@ -1214,8 +1247,6 @@ async function submitPay(e) {
   if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
   const expenseType = $('payExpenseType').value;
   if (expenseType !== 'Fijo' && expenseType !== 'Variable') { toast('Selecciona si el gasto es Fijo o Variable', 'error'); $('payExpenseType').focus(); return; }
-  const businessLine = $('payBusinessLine').value;
-  if (!['Guarda', 'Handling', 'AOC', 'Corporativo'].includes(businessLine)) { toast('Selecciona la línea de negocio', 'error'); $('payBusinessLine').focus(); return; }
   const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
 
   const payDate = $('payDate').value;
@@ -1226,7 +1257,6 @@ async function submitPay(e) {
   inv.paymentInfo = { date: payDate, method: payMethod, bank: payBank, ref, notes: payNotes, by };
   inv.status = 'PAGADA';
   inv.expenseType = expenseType;
-  inv.businessLine = businessLine;
   inv.history = inv.history || [];
   inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
   
@@ -1295,6 +1325,147 @@ async function uploadToGoogleDrive(inv, pdf, xml) {
   } catch (err) { return { success: false, error: err.message }; }
 }
 
+/* ===================== INGRESOS (solo Tesorería) ===================== */
+let incomes = [], tTab = 'pagos', incomePlate = '';
+const iso10 = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function setTTab(t) {
+  tTab = t;
+  [...$('view-tesoreria').children].forEach((el, i) => { if (i === 0 || el.id === 'tTabs' || el.id === 'incomePanel') return; el.classList.toggle('hidden', t === 'ingresos'); });
+  $('incomePanel').classList.toggle('hidden', t !== 'ingresos');
+  $('tabPagos').setAttribute('aria-pressed', String(t === 'pagos')); $('tabIng').setAttribute('aria-pressed', String(t === 'ingresos'));
+  if (t === 'ingresos') { renderIncome(); loadIncomeFromCloud(true); }
+}
+async function loadIncomeFromCloud(manual = false) {
+  if (!auth.tesoreria) return;
+  try {
+    const o = await (await fetch(APPS_SCRIPT_URL + '?action=getIncome', { method: 'GET', redirect: 'follow' })).json();
+    if (o && o.success && Array.isArray(o.incomes)) { incomes = o.incomes; renderIncome(); }
+  } catch (e) { if (manual) toast('No se pudieron cargar los ingresos', 'error'); }
+}
+async function postIncome(body) {
+  const r = await fetch(APPS_SCRIPT_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  return r.json();
+}
+function incSum(list) { const t = { MXN: 0, USD: 0 }; list.forEach(i => { t[i.currency] = (t[i.currency] || 0) + (Number(i.total) || 0); }); return `${fmtMoney(t.MXN, 'MXN')} &middot; ${fmtMoney(t.USD, 'USD')}`; }
+function renderIncome() {
+  if (!$('iBody')) return;
+  const pend = incomes.filter(i => i.status !== 'COBRADO'), paid = incomes.filter(i => i.status === 'COBRADO');
+  const k = (t, l) => `<div class="p-5"><p class="text-sm font-bold" style="color:var(--muted)">${t}</p><p class="text-3xl font-extrabold mt-1">${l.length}</p><p class="text-sm font-semibold mt-1">${incSum(l)}</p></div>`;
+  $('iKpis').innerHTML = k('Por cobrar', pend) + k('Cobrado', paid);
+  $('iBody').innerHTML = incomes.length ? incomes.map(i => `<tr class="clickable" onclick="openIncome('${esc(i.id)}')"><td class="p-3"><span class="font-bold text-teal-800 bg-teal-50 px-2 py-1 rounded text-xs">${esc(i.id)}</span></td><td class="font-bold">${esc(i.folio)}</td><td><p class="font-semibold">${esc(i.clientName)}</p><p class="text-xs" style="color:var(--muted)">${esc(i.clientRfc)}</p></td><td class="text-xs">${fmtDate(i.invoiceDate)}</td><td class="text-xs">${i.dueDate ? fmtDate(i.dueDate) : ''}</td><td class="text-xs">${esc(i.matricula || 'N/A')}<br>${esc(i.businessLine || '')}</td><td class="text-right font-extrabold">${fmtMoney(i.total, i.currency)}</td><td><span class="text-xs font-bold px-2 py-0.5 rounded" style="${i.status === 'COBRADO' ? 'background:#ecfdf3;color:#05603a' : 'background:#fffaeb;color:#93370d'}">${i.status === 'COBRADO' ? 'Cobrado' : 'Por cobrar'}</span></td><td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openIncome('${esc(i.id)}')">Ver</button></td></tr>`).join('') : '<tr><td colspan="9" class="text-center py-10" style="color:var(--muted)">No hay ingresos registrados.</td></tr>';
+}
+function openIncomeNew() {
+  ['inXml', 'inPdf'].forEach(id => $(id).value = '');
+  ['inClient', 'inRfc', 'inFolio', 'inUuid', 'inDate', 'inDue', 'inSub', 'inTotal', 'inPlate', 'inLine', 'inConcept'].forEach(id => $(id).value = '');
+  $('inTax').value = '0'; $('inCur').value = 'MXN'; $('inTc').value = '1'; $('inWarn').classList.add('hidden'); incomePlate = '';
+  openModal('modalIncome');
+}
+function incWarn(m) { const w = $('inWarn'); w.textContent = m || ''; w.classList.toggle('hidden', !m); }
+function onIncomeXml(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const o = parseIncomeXml(ev.target.result);
+      $('inClient').value = o.clientName; $('inRfc').value = o.clientRfc; $('inFolio').value = o.folio; $('inUuid').value = o.uuid;
+      $('inDate').value = o.invoiceDate; $('inDue').value = o.dueDate; $('inSub').value = o.subtotal; $('inTax').value = o.tax; $('inTotal').value = o.total;
+      $('inCur').value = o.currency; $('inTc').value = o.exchangeRate; $('inConcept').value = o.concept;
+      incWarn(o.currency === 'MXN' || o.currency === 'USD' ? '' : 'La factura viene en ' + o.currency + '; solo se aceptan MXN o USD.');
+      toast('Datos del XML cargados', 'success');
+    } catch (err) { $('inXml').value = ''; incWarn(err.message); toast(err.message, 'error'); }
+  };
+  r.readAsText(file);
+}
+function parseIncomeXml(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('XML inválido');
+  const find = n => { for (const el of doc.getElementsByTagName('*')) { if ((el.localName || el.nodeName.split(':').pop()) === n) return el; } return null; };
+  const c = find('Comprobante'), em = find('Emisor'), rc = find('Receptor'), tf = find('TimbreFiscalDigital'), cn = find('Concepto');
+  if (!c || !em) throw new Error('No parece un CFDI');
+  const a = (el, n) => (el && el.getAttribute(n)) || '';
+  if (a(em, 'Rfc').toUpperCase() !== CONFIG.companyRfc) throw new Error('Este XML no fue emitido por Jet Mach (RFC emisor ' + a(em, 'Rfc') + ').');
+  if (a(c, 'TipoDeComprobante') !== 'I') throw new Error('Solo se aceptan facturas de ingreso (tipo I).');
+  const imp = [...c.children].find(e => (e.localName || e.nodeName.split(':').pop()) === 'Impuestos');
+  const fecha = a(c, 'Fecha').slice(0, 10), dias = (a(c, 'CondicionesDePago').match(/(\d+)\s*d[ií]as/i) || [])[1];
+  let due = ''; if (dias && fecha) { const d = new Date(fecha + 'T12:00:00'); d.setDate(d.getDate() + Number(dias)); due = iso10(d); }
+  return { clientName: a(rc, 'Nombre'), clientRfc: a(rc, 'Rfc').toUpperCase(), folio: a(c, 'Serie') + a(c, 'Folio'), uuid: a(tf, 'UUID').toUpperCase(),
+    invoiceDate: fecha, dueDate: due, subtotal: a(c, 'SubTotal'), tax: a(imp, 'TotalImpuestosTrasladados') || '0', total: a(c, 'Total'),
+    currency: (a(c, 'Moneda') || 'MXN').toUpperCase(), exchangeRate: a(c, 'TipoCambio') || '1', concept: a(cn, 'Descripcion') };
+}
+async function onIncomePdf(file) {
+  if (!file || !window.pdfjsLib) return;
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    let text = ''; for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) { const ct = await (await pdf.getPage(i)).getTextContent(); text += ' ' + ct.items.map(it => it.str).join(' '); }
+    const k = text.search(/Notas(?![\s\S]*Notas)/i), part = k >= 0 ? text.slice(k) : text;
+    const m = part.match(/\b(N\d{1,5}[A-Z]{0,2}|X[A-C]-?[A-Z]{3})\b/);
+    if (m && !$('inPlate').value) { $('inPlate').value = m[1]; toast('Matrícula detectada: ' + m[1] + '. Confírmala.', 'info'); }
+  } catch (e) { console.warn('PDF ingreso:', e); }
+}
+async function submitIncome(e) {
+  e.preventDefault();
+  const uuid = $('inUuid').value.trim();
+  if (uuid && incomes.some(i => (i.uuid || '').toUpperCase() === uuid.toUpperCase())) { toast('Este ingreso ya está registrado', 'error'); return; }
+  const total = parseFloat($('inTotal').value);
+  if (!(total > 0)) { toast('El total debe ser mayor a cero', 'error'); return; }
+  const btn = $('inSubmit'); btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const pdf = $('inPdf').files[0], xml = $('inXml').files[0];
+    const [pb, xb] = await Promise.all([fileToBase64(pdf), fileToBase64(xml)]);
+    const out = await postIncome({ action: 'createIncome',
+      income: { folio: $('inFolio').value.trim(), uuid, clientName: $('inClient').value.trim(), clientRfc: $('inRfc').value.trim().toUpperCase(), invoiceDate: $('inDate').value, dueDate: $('inDue').value,
+        subtotal: parseFloat($('inSub').value) || 0, tax: parseFloat($('inTax').value) || 0, total, currency: $('inCur').value, exchangeRate: parseFloat($('inTc').value) || 1,
+        concept: $('inConcept').value.trim(), matricula: $('inPlate').value.trim().toUpperCase(), businessLine: $('inLine').value, createdBy: (auth.tesoreria && auth.tesoreria.name) || 'Tesorería' },
+      pdf: pdf && pb ? { name: pdf.name, base64: pb } : null, xml: xml && xb ? { name: xml.name, base64: xb } : null });
+    if (!out || !out.success) throw new Error((out && out.error) || 'No se pudo guardar');
+    incomes.unshift(out.income); renderIncome(); closeModal('modalIncome'); toast('Ingreso ' + out.income.id + ' guardado en Drive y Sheets', 'success');
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Guardar ingreso'; }
+}
+function openIncome(id) {
+  const i = incomes.find(x => x.id === id); if (!i) return;
+  $('ivTitle').textContent = `${i.id} - ${i.folio}`;
+  const c = i.collectionInfo;
+  $('ivBody').innerHTML = `<p><b>Cliente:</b> ${esc(i.clientName)} (${esc(i.clientRfc)})</p><p><b>Concepto:</b> ${esc(i.concept)}</p>
+    <p><b>Subtotal:</b> ${fmtMoney(i.subtotal, i.currency)} &middot; <b>IVA:</b> ${fmtMoney(i.tax, i.currency)} &middot; <b>Total:</b> ${fmtMoney(i.total, i.currency)}</p>
+    <p><b>Fecha:</b> ${fmtDate(i.invoiceDate)} &middot; <b>Vence:</b> ${i.dueDate ? fmtDate(i.dueDate) : 'N/A'}</p>
+    <p>${i.pdfUrl ? `<a class="underline" href="${esc(i.pdfUrl)}" target="_blank" rel="noopener">PDF</a> ` : ''}${i.xmlUrl ? `<a class="underline" href="${esc(i.xmlUrl)}" target="_blank" rel="noopener">XML</a>` : ''}</p>
+    <div class="grid grid-cols-2 gap-2"><div><label class="label" for="ivPlate">Matrícula</label><input class="input" id="ivPlate" value="${esc(i.matricula || '')}"></div>
+    <div><label class="label" for="ivLine">Línea de negocio</label><select class="input" id="ivLine">${['Guarda', 'Handling', 'AOC'].map(l => `<option${i.businessLine === l ? ' selected' : ''}>${l}</option>`).join('')}</select></div></div>
+    <button class="btn btn-primary btn-sm" onclick="saveIncomeClass('${esc(i.id)}')">Guardar clasificación</button>
+    ${i.status === 'COBRADO' && c ? `<div class="rounded-lg p-3" style="background:#ecfdf3;border:1px solid #abefc6"><p class="font-bold">Cobrado el ${fmtDate(c.date)}</p><p>${esc(c.method)} &middot; Ref. ${esc(c.ref)}</p></div>`
+      : `<div class="rounded-lg p-3 space-y-2" style="background:#f6f8fa;border:1px solid var(--line)"><p class="font-bold">Registrar cobro</p><div class="grid grid-cols-3 gap-2"><input class="input" type="date" id="ivDate" value="${todayStr()}"><input class="input" id="ivMethod" placeholder="Forma (SPEI...)"><input class="input" id="ivRef" placeholder="Referencia"></div><button class="btn btn-primary btn-sm" onclick="collectIncome('${esc(i.id)}')">Marcar como cobrado</button></div>`}
+    <button class="btn btn-danger w-full" onclick="deleteIncome('${esc(i.id)}')">Eliminar ingreso</button>`;
+  openModal('modalIncomeView');
+}
+async function updateIncome(id, changes, msg) {
+  try {
+    const out = await postIncome({ action: 'updateIncome', id, changes });
+    if (!out || !out.success) throw new Error((out && out.error) || 'No se pudo guardar');
+    toast(msg, 'success'); loadIncomeFromCloud();
+  } catch (err) { toast('Error: ' + err.message, 'error'); await loadIncomeFromCloud(); }
+}
+function saveIncomeClass(id) {
+  const i = incomes.find(x => x.id === id); if (!i) return;
+  i.matricula = $('ivPlate').value.trim().toUpperCase(); i.businessLine = $('ivLine').value; renderIncome();
+  updateIncome(id, { matricula: i.matricula, businessLine: i.businessLine }, 'Clasificación guardada');
+}
+function collectIncome(id) {
+  const i = incomes.find(x => x.id === id); if (!i) return;
+  const ref = $('ivRef').value.trim(); if (!ref) { toast('Captura la referencia del cobro', 'error'); return; }
+  const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
+  i.status = 'COBRADO'; i.collectionInfo = { date: $('ivDate').value, method: $('ivMethod').value.trim(), ref, by };
+  i.history = (i.history || []).concat(H('COBRADO', new Date().toISOString(), by, 'Ref. ' + ref));
+  renderIncome(); closeModal('modalIncomeView');
+  updateIncome(id, { status: 'COBRADO', collectionInfo: i.collectionInfo, history: i.history }, 'Ingreso marcado como cobrado');
+}
+async function deleteIncome(id) {
+  const i = incomes.find(x => x.id === id); if (!i) return;
+  if (!confirm(`¿Eliminar el ingreso ${i.id} (${i.folio}) de ${i.clientName}?\n\nSe eliminará de Sheets y su carpeta de Drive irá a la papelera.`)) return;
+  incomes = incomes.filter(x => x.id !== id); renderIncome(); closeModal('modalIncomeView');
+  try { await postIncome({ action: 'deleteIncome', id }); toast('Ingreso eliminado', 'success'); } catch (e) { toast('No se pudo eliminar en la nube', 'error'); loadIncomeFromCloud(); }
+}
+
 /* ===================== INICIO ===================== */
 window.addEventListener('DOMContentLoaded', () => {
   $('companyLine').textContent = CONFIG.companyName;
@@ -1307,6 +1478,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // 2. Consulta automática periódica en segundo plano cada 12 segundos
   setInterval(() => {
     loadInvoicesFromCloud(false);
+    if (tTab === 'ingresos') loadIncomeFromCloud(false);
   }, 12000);
 });
 </script>
