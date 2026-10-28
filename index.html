@@ -1098,19 +1098,59 @@ function openPay(id) {
   openModal('modalPay');
   setTimeout(() => $('payBank').focus(), 80);
 }
-function submitPay(e) {
+async function submitPay(e) {
   e.preventDefault();
   const inv = findInv($('payId').value);
   if (!inv || inv.status !== 'APROBADA') { toast('Esta factura ya no está por pagar', 'error'); closeModal('modalPay'); return; }
   const ref = $('payRef').value.trim();
   if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
   const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
-  inv.paymentInfo = { date: $('payDate').value, method: $('payMethod').value, bank: $('payBank').value.trim(), ref, notes: $('payNotes').value.trim(), by };
+
+  const payDate = $('payDate').value;
+  const payMethod = $('payMethod').value;
+  const payBank = $('payBank').value.trim();
+  const payNotes = $('payNotes').value.trim();
+
+  inv.paymentInfo = { date: payDate, method: payMethod, bank: payBank, ref, notes: payNotes, by };
   inv.status = 'PAGADA';
   inv.history = inv.history || [];
   inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
   save(); closeModal('modalPay'); renderAll();
-  toast('Factura marcada como pagada', 'success');
+
+  if (!inv.email) { toast('Factura marcada como pagada (el proveedor no dejó correo para avisos)', 'info'); return; }
+  toast('Factura marcada como pagada. Enviando correo al proveedor...', 'info');
+
+  // Notificación por correo al proveedor (Apps Script, acción notifyPayment)
+  try {
+    const url = getDriveWebhookUrl();
+    if (!url) throw new Error('Sin URL de Apps Script');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'notifyPayment',
+        paymentData: {
+          email: inv.email,
+          supplierName: inv.supplierName,
+          autoFolio: inv.id,
+          folio: inv.folio,
+          matricula: inv.matricula || '',
+          amountFormatted: fmtMoney(inv.amount, inv.currency),
+          payDate: fmtDate(payDate),
+          payMethod: payMethod,
+          payBank: payBank,
+          payRef: ref,
+          payNotes: payNotes
+        }
+      })
+    });
+    const out = await res.json();
+    if (out && out.success) toast('Correo de pago enviado al proveedor', 'success');
+    else throw new Error((out && out.error) || 'El script no confirmó el envío');
+  } catch (err) {
+    console.warn('Error enviando notificación por correo:', err);
+    toast('Pago registrado, pero no se pudo enviar el correo: ' + err.message, 'error');
+  }
 }
 
 /* ===================== GOOGLE DRIVE ===================== */
