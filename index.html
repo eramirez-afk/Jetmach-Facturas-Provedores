@@ -309,6 +309,9 @@
     <div class="panel overflow-hidden">
       <div class="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b" style="border-color:var(--line)">
         <input class="input lg:max-w-sm" type="search" id="gSearch" oninput="renderGerente()" placeholder="Buscar proveedor, RFC, folio u orden de compra">
+        <select class="input lg:w-52" id="gType" onchange="ui.gType=this.value;renderGerente()" aria-label="Filtrar por tipo de gasto">
+          <option value="ALL">Todos los tipos de gasto</option><option value="Fijo">Fijo</option><option value="Variable">Variable</option><option value="SIN">Sin clasificar</option>
+        </select>
         <div id="gChips" class="flex flex-wrap gap-1"></div>
       </div>
       <div class="overflow-x-auto scroll">
@@ -350,6 +353,9 @@
           <input class="input sm:max-w-sm" type="search" id="tSearch" oninput="renderTesoreria()" placeholder="Buscar proveedor, RFC, folio o referencia">
           <select class="input sm:w-40" id="tCurrency" onchange="ui.tCurrency=this.value;renderTesoreria()" aria-label="Filtrar por moneda">
             <option value="ALL">Todas las monedas</option><option value="MXN">Solo MXN</option><option value="USD">Solo USD</option>
+          </select>
+          <select class="input sm:w-52" id="tType" onchange="ui.tType=this.value;renderTesoreria()" aria-label="Filtrar por tipo de gasto">
+            <option value="ALL">Todos los tipos de gasto</option><option value="Fijo">Fijo</option><option value="Variable">Variable</option><option value="SIN">Sin clasificar</option>
           </select>
         </div>
         <div id="tChips" class="flex flex-wrap gap-1"></div>
@@ -412,6 +418,14 @@
         <div>
           <label class="label" for="payRef">Número de comprobante de pago</label>
           <input class="input" type="text" id="payRef" required placeholder="Ej. TR-994821038">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="payExpenseType">Tipo de gasto</label>
+          <select class="input" id="payExpenseType" required>
+            <option value="">Selecciona...</option>
+            <option value="Fijo">Fijo</option>
+            <option value="Variable">Variable</option>
+          </select>
         </div>
       </div>
       <div>
@@ -513,7 +527,7 @@ const H = (type, at, by, note = '') => ({ type, at, by, note });
 
 let invoices = [];
 const fileStore = {};
-const ui = { view: 'supplier', gFilter: 'PENDIENTE', tFilter: 'APROBADA', tCurrency: 'ALL', drawerId: null };
+const ui = { view: 'supplier', gFilter: 'PENDIENTE', tFilter: 'APROBADA', tCurrency: 'ALL', gType: 'ALL', tType: 'ALL', drawerId: null };
 let origin = 'nacional', formCurrency = 'MXN';
 let files = { pdf: null, xml: null };
 let formMeta = { uuid: '', receptorRfc: '' };
@@ -553,7 +567,8 @@ async function syncStatusToCloud(inv) {
         status: inv.status,
         rejectionReason: inv.rejectionReason,
         paymentInfo: inv.paymentInfo,
-        history: inv.history
+        history: inv.history,
+        expenseType: inv.expenseType
       })
     });
     setTimeout(() => loadInvoicesFromCloud(), 1200);
@@ -901,11 +916,12 @@ function doTrack(e) {
 }
 
 /* ===================== TABLAS DE DATOS ===================== */
-function filterList(status, term, currency) {
+function filterList(status, term, currency, expType) {
   term = (term || '').toLowerCase().trim();
   return invoices.filter(i =>
     (status === 'ALL' || i.status === status) &&
     (currency === 'ALL' || i.currency === currency) &&
+    (!expType || expType === 'ALL' || (expType === 'SIN' ? !i.expenseType : i.expenseType === expType)) &&
     (!term || [i.id, i.supplierName, i.rfc, i.folio, i.concept].some(x => (x || '').toLowerCase().includes(term)))
   );
 }
@@ -928,7 +944,7 @@ function rowHtml(inv, role) {
     <td class="text-xs">${fmtDate(inv.submissionDate)}</td>
     <td class="text-xs"><p class="truncate max-w-[200px]">${esc(inv.concept)}</p></td>
     <td class="text-right"><p class="font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></td>
-    <td>${statusBadge(inv.status)}</td>
+    <td>${statusBadge(inv.status)}${inv.expenseType ? `<div class="mt-1"><span class="text-xs font-bold px-2 py-0.5 rounded" style="background:#eef2ff;color:#3730a3">${esc(inv.expenseType)}</span></div>` : ''}</td>
     <td class="text-right"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDrawer('${inv.id}')">Ver</button></td>
   </tr>`;
 }
@@ -943,7 +959,7 @@ function renderGerente() {
   const by = s => invoices.filter(i => i.status === s);
   $('gKpis').innerHTML = kpi('Esperan tu visto bueno', by('PENDIENTE').length, by('PENDIENTE')) + kpi('Aprobadas', by('APROBADA').length, by('APROBADA')) + kpi('Rechazadas', by('RECHAZADA').length, by('RECHAZADA'));
   $('gChips').innerHTML = chipsHtml(ui.gFilter, 'setGFilter', ['PENDIENTE', 'APROBADA', 'RECHAZADA', 'PAGADA', 'ALL']);
-  const list = filterList(ui.gFilter, $('gSearch').value, 'ALL');
+  const list = filterList(ui.gFilter, $('gSearch').value, 'ALL', ui.gType);
   $('gBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'gerente')).join('') : emptyRow;
 }
 function renderTesoreria() {
@@ -952,7 +968,7 @@ function renderTesoreria() {
   const by = s => invoices.filter(i => i.status === s);
   $('tKpis').innerHTML = kpi('Por pagar', by('APROBADA').length, by('APROBADA')) + kpi('Pagadas', by('PAGADA').length, by('PAGADA')) + kpi('En revisión', by('PENDIENTE').length, by('PENDIENTE'));
   $('tChips').innerHTML = chipsHtml(ui.tFilter, 'setTFilter', ['APROBADA', 'PAGADA', 'ALL']);
-  const list = filterList(ui.tFilter, $('tSearch').value, ui.tCurrency);
+  const list = filterList(ui.tFilter, $('tSearch').value, ui.tCurrency, ui.tType);
   $('tBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'tesoreria')).join('') : emptyRow;
 }
 
@@ -969,6 +985,8 @@ function closeDrawer() {
 }
 function renderDrawer() {
   const inv = findInv(ui.drawerId); if (!inv) { closeDrawer(); return; }
+  const prevSel = $('drawerExpType');
+  const prevExp = prevSel && prevSel.dataset.inv === inv.id ? prevSel.value : null;
   $('drawerTitle').textContent = `Registro ${inv.id} - Folio ${shortFolio(inv.folio)}`;
   $('drawerSub').textContent = `${inv.supplierName}`;
   $('drawerBody').innerHTML = `
@@ -994,7 +1012,13 @@ function renderDrawer() {
       ${inv.paymentInfo.notes ? `<p><b>Notas:</b> ${esc(inv.paymentInfo.notes)}</p>` : ''}
       <p class="text-xs" style="color:var(--muted)">Registrado por ${esc(inv.paymentInfo.by)}</p>
     </div>` : ''}`;
-  
+  if ((ui.view === 'gerente' || ui.view === 'tesoreria') && inv.status === 'PAGADA') {
+    const t = prevExp !== null ? prevExp : (inv.expenseType || '');
+    $('drawerBody').insertAdjacentHTML('beforeend', ui.view === 'tesoreria'
+      ? `<div class="mt-4 text-sm"><label class="label" for="drawerExpType">Tipo de gasto</label><div class="flex gap-2"><select class="input" id="drawerExpType" data-inv="${esc(inv.id)}"><option value=""${t === '' ? ' selected' : ''}>Sin clasificar</option><option value="Fijo"${t === 'Fijo' ? ' selected' : ''}>Fijo</option><option value="Variable"${t === 'Variable' ? ' selected' : ''}>Variable</option></select><button class="btn btn-primary btn-sm" onclick="saveExpenseType('${inv.id}')">Guardar</button></div></div>`
+      : `<p class="text-sm mt-4"><b>Tipo de gasto:</b> ${esc(inv.expenseType || 'Sin clasificar')}</p>`);
+  }
+
   let foot = '';
   if (ui.view === 'gerente' && inv.status === 'PENDIENTE') {
     foot = `<div class="flex justify-end gap-2"><button class="btn btn-danger" onclick="doReject('${inv.id}')">Rechazar</button><button class="btn btn-primary" onclick="doApprove('${inv.id}')">Dar visto bueno</button></div>`;
@@ -1085,6 +1109,7 @@ function exportRows() {
       'Orden de compra': i.poNumber || '', 'Matrícula': i.matricula || '', 'Concepto': i.concept || '',
       'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
       'Estatus': (STATUS[i.status] || {}).label || i.status,
+      'Tipo de gasto': i.expenseType || '',
       'Visto bueno por': a.by || '', 'Fecha visto bueno': isoDT(a.at),
       'Motivo de rechazo': i.rejectionReason || '',
       'Fecha de pago': isoD(p.date), 'Método de pago': p.method || '', 'Banco de pago': p.bank || '',
@@ -1143,6 +1168,17 @@ async function doDelete(id) {
     console.warn('Error al eliminar en Sheets:', err);
   }
 }
+/* ===================== TIPO DE GASTO (solo Tesorería puede cambiarlo) ===================== */
+function saveExpenseType(id) {
+  const inv = findInv(id); if (!inv || !auth.tesoreria) return;
+  const sel = $('drawerExpType'); const v = sel ? sel.value : '';
+  if (v !== 'Fijo' && v !== 'Variable') { toast('Selecciona Fijo o Variable', 'error'); return; }
+  inv.expenseType = v;
+  save(); renderAll();
+  syncStatusToCloud(inv);
+  toast('Tipo de gasto guardado', 'success');
+}
+
 /* ===================== REGISTRO DE PAGO ===================== */
 function openPay(id) {
   const inv = findInv(id); if (!inv || inv.status !== 'APROBADA') return;
@@ -1154,6 +1190,7 @@ function openPay(id) {
   $('payDate').value = todayStr();
   $('payMethod').value = inv.origin === 'internacional' ? 'Transferencia internacional (SWIFT)' : 'Transferencia SPEI';
   $('payBank').value = ''; $('payRef').value = ''; $('payNotes').value = '';
+  $('payExpenseType').value = inv.expenseType || '';
   openModal('modalPay');
   setTimeout(() => $('payBank').focus(), 80);
 }
@@ -1163,6 +1200,8 @@ async function submitPay(e) {
   if (!inv || inv.status !== 'APROBADA') { toast('Esta factura ya no está por pagar', 'error'); closeModal('modalPay'); return; }
   const ref = $('payRef').value.trim();
   if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
+  const expenseType = $('payExpenseType').value;
+  if (expenseType !== 'Fijo' && expenseType !== 'Variable') { toast('Selecciona si el gasto es Fijo o Variable', 'error'); $('payExpenseType').focus(); return; }
   const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
 
   const payDate = $('payDate').value;
@@ -1172,6 +1211,7 @@ async function submitPay(e) {
 
   inv.paymentInfo = { date: payDate, method: payMethod, bank: payBank, ref, notes: payNotes, by };
   inv.status = 'PAGADA';
+  inv.expenseType = expenseType;
   inv.history = inv.history || [];
   inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
   
