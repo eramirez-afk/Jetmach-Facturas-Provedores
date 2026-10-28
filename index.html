@@ -542,51 +542,71 @@ function toast(msg, type = 'info') {
 function openModal(id) { const el = $(id); el.classList.remove('hidden'); el.classList.add('flex'); }
 function closeModal(id) { const el = $(id); el.classList.add('hidden'); el.classList.remove('flex'); }
 
-/* ===================== DATOS ===================== */
+/* ===================== DATOS & SINCRONIZACIÓN NUBE ===================== */
 const H = (type, at, by, note = '') => ({ type, at, by, note });
 
-function seedInvoices() {
-  const R = CONFIG.companyRfc;
-  return [
-    {
-      id: 'FAC-0001', origin: 'nacional', supplierName: 'Soluciones Tecnológicas del Norte S.A. de C.V.', rfc: 'STN190520AB3',
-      email: 'facturas@tecnonorte.com', folio: 'F-8942', uuid: '8F2B6C1A-3D4E-4F50-9A7B-1C2D3E4F5A6B', receptorRfc: R,
-      poNumber: 'OC-2026-042', amount: 34800, currency: 'MXN', country: 'México', bankName: '', swift: '', iban: '',
-      concept: 'Licenciamiento de software anual y soporte técnico en la nube', invoiceDate: '2026-10-22', submissionDate: '2026-10-23',
-      pdfFile: 'Factura_F-8942.pdf', xmlFile: 'Factura_F-8942.xml', pdfDriveUrl: null, xmlDriveUrl: null, driveInvoiceFolderId: null,
-      status: 'PENDIENTE', rejectionReason: null, approval: null, paymentInfo: null,
-      history: [H('CREADA', '2026-10-23T10:15:00-06:00', 'Proveedor')]
-    },
-    {
-      id: 'FAC-0002', origin: 'nacional', supplierName: 'Distribuidora Papelera & Suministros MX', rfc: 'DPS140211KZ8',
-      email: 'cobranza@papeleramx.com', folio: 'B-1033', uuid: '3C9D1E7F-5A2B-4C8D-8E1F-0A9B7C6D5E4F', receptorRfc: R,
-      poNumber: 'OC-2026-039', amount: 8520.5, currency: 'MXN', country: 'México', bankName: '', swift: '', iban: '',
-      concept: 'Insumos de papelería para oficinas corporativas, septiembre', invoiceDate: '2026-10-19', submissionDate: '2026-10-20',
-      pdfFile: 'Factura_B1033.pdf', xmlFile: 'Factura_B1033.xml', pdfDriveUrl: null, xmlDriveUrl: null, driveInvoiceFolderId: null,
-      status: 'APROBADA', rejectionReason: null,
-      approval: { by: 'Gerencia (ejemplo)', at: '2026-10-21T11:30:00-06:00', note: 'Coincide con la OC.' }, paymentInfo: null,
-      history: [H('CREADA', '2026-10-20T09:05:00-06:00', 'Proveedor'), H('APROBADA', '2026-10-21T11:30:00-06:00', 'Gerencia (ejemplo)', 'Coincide con la OC.')]
-    }
-  ];
-}
-function loadInvoices() {
-  try { const raw = localStorage.getItem(CONFIG.storageKey); if (raw) return JSON.parse(raw); } catch (e) {}
-  return seedInvoices();
-}
-function save() { try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(invoices)); } catch (e) { console.warn('No se pudo guardar', e); } }
-function resetDemo() {
-  if (!confirm('Esto borra las facturas actuales y restaura los datos de ejemplo. ¿Continuar?')) return;
-  invoices = seedInvoices();
-  localStorage.setItem('portal_invoice_seq', '3'); // Reinicia el contador consecutivo
-  save(); closeDrawer(); renderAll(); toast('Datos de ejemplo restaurados', 'info');
-}
-
-let invoices = loadInvoices();
+let invoices = [];
 const fileStore = {};
 const ui = { view: 'supplier', gFilter: 'PENDIENTE', tFilter: 'APROBADA', tCurrency: 'ALL', drawerId: null };
 let origin = 'nacional', formCurrency = 'MXN';
 let files = { pdf: null, xml: null };
 let formMeta = { uuid: '', receptorRfc: '' };
+
+async function loadInvoicesFromCloud() {
+  const url = getDriveWebhookUrl();
+  if (!url) return;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'getInvoices' })
+    });
+    const out = await res.json();
+    if (out && out.success && Array.isArray(out.invoices)) {
+      invoices = out.invoices;
+      saveLocalBackup();
+      renderAll();
+    }
+  } catch (err) {
+    console.warn('No se pudieron obtener las facturas desde Google Sheets:', err);
+  }
+}
+
+async function syncStatusToCloud(inv) {
+  const url = getDriveWebhookUrl();
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'updateStatus',
+        id: inv.id,
+        status: inv.status,
+        rejectionReason: inv.rejectionReason,
+        paymentInfo: inv.paymentInfo,
+        history: inv.history
+      })
+    });
+  } catch (err) {
+    console.warn('Error al actualizar estatus en Google Sheets:', err);
+  }
+}
+
+function saveLocalBackup() {
+  try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(invoices)); } catch (e) {}
+}
+
+function save() {
+  saveLocalBackup();
+}
+
+function resetDemo() {
+  if (!confirm('Esto borra la vista local y recarga las facturas registradas en la nube. ¿Continuar?')) return;
+  loadInvoicesFromCloud();
+  closeDrawer();
+  toast('Datos recargados desde la nube', 'info');
+}
 
 /* ===================== SESIONES ===================== */
 function loadAuth() { try { return JSON.parse(sessionStorage.getItem('portal_auth')) || { gerente: null, tesoreria: null }; } catch (e) { return { gerente: null, tesoreria: null }; } }
@@ -838,10 +858,16 @@ async function submitInvoice(e) {
 
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
-    // Generación del Folio Consecutivo Interno (FAC-0001, FAC-0002...)
-    let nextNum = parseInt(localStorage.getItem('portal_invoice_seq') || '3', 10);
-    const autoFolio = 'FAC-' + String(nextNum).padStart(4, '0');
-    localStorage.setItem('portal_invoice_seq', (nextNum + 1).toString());
+    // Generación del Folio Consecutivo Interno basado en la nube/lista
+    let maxNum = 0;
+    invoices.forEach(i => {
+      const match = (i.id || '').match(/FAC-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const autoFolio = 'FAC-' + String(maxNum + 1).padStart(4, '0');
 
     const inv = {
       id: autoFolio,
@@ -860,7 +886,7 @@ async function submitInvoice(e) {
     };
 
     if (getDriveWebhookUrl()) {
-      toast('Guardando archivos en Google Drive...', 'info');
+      toast('Guardando en Google Drive y Sheets...', 'info');
       const res = await uploadToGoogleDrive(inv, files.pdf, files.xml);
       if (res && res.success) {
         inv.driveInvoiceFolderId = res.invoiceFolderId; inv.pdfDriveUrl = res.pdfUrl; inv.xmlDriveUrl = res.xmlUrl;
@@ -873,7 +899,7 @@ async function submitInvoice(e) {
     $('successCode').textContent = inv.id;
     $('successText').textContent = `${inv.supplierName}, folio de factura ${inv.folio} por ${fmtMoney(inv.amount, inv.currency)}. Gerencia ya puede revisarla.`;
     $('formWrap').classList.add('hidden'); $('successCard').classList.remove('hidden');
-    $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id; // Busca también por el folio consecutivo FAC
+    $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err) {
     console.error(err); toast('No se pudo registrar la factura', 'error');
@@ -1023,7 +1049,12 @@ function renderDrawer() {
 
 function doApprove(id) {
   const inv = findInv(id); if (!inv) return;
-  inv.status = 'APROBADA'; save(); renderAll(); toast('Visto bueno otorgado', 'success');
+  inv.status = 'APROBADA';
+  inv.history = inv.history || [];
+  inv.history.push(H('APROBADA', new Date().toISOString(), (auth.gerente && auth.gerente.name) || 'Gerencia'));
+  save(); renderAll();
+  syncStatusToCloud(inv);
+  toast('Visto bueno otorgado', 'success');
 }
 
 async function doReject(id) {
@@ -1041,8 +1072,8 @@ async function doReject(id) {
   inv.history = inv.history || [];
   inv.history.push(H('RECHAZADA', new Date().toISOString(), (auth.gerente && auth.gerente.name) || 'Gerencia', reason.trim()));
 
-  save();
-  renderAll();
+  save(); renderAll();
+  syncStatusToCloud(inv);
 
   if (!inv.email) {
     toast('Factura rechazada (el proveedor no registró correo para avisos)', 'info');
@@ -1170,12 +1201,13 @@ async function submitPay(e) {
   inv.status = 'PAGADA';
   inv.history = inv.history || [];
   inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
+  
   save(); closeModal('modalPay'); renderAll();
+  syncStatusToCloud(inv);
 
   if (!inv.email) { toast('Factura marcada como pagada (el proveedor no dejó correo para avisos)', 'info'); return; }
   toast('Factura marcada como pagada. Enviando correo al proveedor...', 'info');
 
-  // Notificación por correo al proveedor (Apps Script, acción notifyPayment)
   try {
     const url = getDriveWebhookUrl();
     if (!url) throw new Error('Sin URL de Apps Script');
@@ -1251,6 +1283,9 @@ window.addEventListener('DOMContentLoaded', () => {
   $('companyLine').textContent = CONFIG.companyName;
   setOrigin('nacional'); setCurrency('MXN');
   updateDriveStatusUI();
+  
+  // Sincronización automática de facturas desde la nube al cargar
+  loadInvoicesFromCloud();
   go('supplier');
 });
 </script>
