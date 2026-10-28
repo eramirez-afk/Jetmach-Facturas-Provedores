@@ -234,4 +234,1027 @@
             </div>
           </div>
 
-          <div id="intlBlock" class="hidden rounded-lg p-4" style="
+          <div id="intlBlock" class="hidden rounded-lg p-4" style="background:#eef6fb;border:1px solid #c5def0">
+            <p class="text-sm font-bold" style="color:#1d4e73">Datos para recibir tu transferencia internacional</p>
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label class="label" for="supplierCountry">País</label>
+                <select class="input" id="supplierCountry">
+                  <option>Estados Unidos</option><option>Canadá</option><option>España</option><option>Alemania</option>
+                  <option>Reino Unido</option><option>Colombia</option><option>Brasil</option><option>China</option><option>Otro</option>
+                </select>
+              </div>
+              <div>
+                <label class="label" for="supplierBank">Banco beneficiario</label>
+                <input class="input" type="text" id="supplierBank" placeholder="Ej. Bank of America">
+              </div>
+              <div>
+                <label class="label" for="supplierSwift">SWIFT/BIC o routing</label>
+                <input class="input uppercase" type="text" id="supplierSwift" placeholder="Ej. BOFAUS3N">
+              </div>
+              <div>
+                <label class="label" for="supplierIban">Cuenta o IBAN</label>
+                <input class="input" type="text" id="supplierIban" placeholder="Ej. US39 1234 5678 9012">
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <details class="text-sm">
+              <summary class="cursor-pointer font-semibold" style="color:var(--muted)">Cargar datos de ejemplo</summary>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoXml()">XML de un CFDI 4.0</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoPdf()">PDF de factura nacional</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="loadDemoInternationalPdf()">Invoice en USD</button>
+              </div>
+            </details>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn btn-ghost" onclick="resetForm()">Limpiar</button>
+              <button type="submit" id="submitBtn" class="btn btn-primary">Enviar a revisión</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Consultar estatus -->
+    <div id="panelTrack" class="hidden space-y-4">
+      <div class="panel p-6">
+        <h3 class="text-base font-extrabold">Consulta el avance de tu factura</h3>
+        <p class="hint mt-0.5">Escribe el RFC o Tax ID y el folio exactamente como los capturaste al subirla (o tu código consecutivo FAC-XXXX).</p>
+        <form onsubmit="doTrack(event)" class="mt-4 grid sm:grid-cols-3 gap-3 items-end">
+          <div>
+            <label class="label" for="trackRfc">RFC o Tax ID</label>
+            <input class="input uppercase" type="text" id="trackRfc" required>
+          </div>
+          <div>
+            <label class="label" for="trackFolio">Folio de factura o código FAC</label>
+            <input class="input" type="text" id="trackFolio" required>
+          </div>
+          <button class="btn btn-primary" type="submit">Consultar</button>
+        </form>
+      </div>
+      <div id="trackResult" class="space-y-4"></div>
+    </div>
+  </section>
+
+  <!-- ===================== VISTA GERENCIA ===================== -->
+  <section id="view-gerente" class="space-y-5 hidden">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-2xl font-extrabold tracking-tight">Visto bueno de gerencia</h2>
+        <p class="text-sm" style="color:var(--muted)">Revisa cada factura y decide si pasa a pago. Sesión de <span id="gerenteUser" class="font-bold"></span>.</p>
+      </div>
+    </div>
+
+    <div id="gKpis" class="panel grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x" style="--tw-divide-opacity:1"></div>
+
+    <div class="panel overflow-hidden">
+      <div class="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b" style="border-color:var(--line)">
+        <input class="input lg:max-w-sm" type="search" id="gSearch" oninput="renderGerente()" placeholder="Buscar proveedor, RFC, folio u orden de compra">
+        <div id="gChips" class="flex flex-wrap gap-1"></div>
+      </div>
+      <div class="overflow-x-auto scroll">
+        <table class="w-full min-w-[920px]">
+          <thead><tr>
+            <th>ID Interno</th><th>Factura</th><th>Proveedor</th><th>Recibida</th><th>Concepto</th><th class="text-right">Monto</th><th>Estatus</th><th class="text-right">Acción</th>
+          </tr></thead>
+          <tbody id="gBody" class="text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== VISTA TESORERÍA ===================== -->
+  <section id="view-tesoreria" class="space-y-5 hidden">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-2xl font-extrabold tracking-tight">Pagos</h2>
+        <p class="text-sm" style="color:var(--muted)">Solo se pagan facturas con visto bueno de gerencia. Sesión de <span id="tesoreriaUser" class="font-bold"></span>.</p>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="exportExcel()">Exportar a Excel</button>
+    </div>
+
+    <div id="tKpis" class="panel grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x"></div>
+
+    <div class="panel px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="text-lg" aria-hidden="true">&#128193;</span>
+        <div>
+          <p class="text-sm font-bold">Respaldo en Google Drive <span id="driveBadge" class="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">Sin configurar</span></p>
+          <p class="hint" id="driveText"></p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="testDriveConnection()">Probar conexión</button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('modalDrive')">Ajustes de Drive</button>
+      </div>
+    </div>
+
+    <div class="panel overflow-hidden">
+      <div class="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b" style="border-color:var(--line)">
+        <div class="flex flex-col sm:flex-row gap-2 flex-1">
+          <input class="input sm:max-w-sm" type="search" id="tSearch" oninput="renderTesoreria()" placeholder="Buscar proveedor, RFC, folio o referencia">
+          <select class="input sm:w-40" id="tCurrency" onchange="ui.tCurrency=this.value;renderTesoreria()" aria-label="Filtrar por moneda">
+            <option value="ALL">Todas las monedas</option><option value="MXN">Solo MXN</option><option value="USD">Solo USD</option>
+          </select>
+        </div>
+        <div id="tChips" class="flex flex-wrap gap-1"></div>
+      </div>
+      <div class="overflow-x-auto scroll">
+        <table class="w-full min-w-[920px]">
+          <thead><tr>
+            <th>ID Interno</th><th>Factura</th><th>Proveedor</th><th>Aprobada</th><th>Concepto</th><th class="text-right">Monto</th><th>Estatus</th><th class="text-right">Acción</th>
+          </tr></thead>
+          <tbody id="tBody" class="text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+    <p class="text-xs text-center" style="color:var(--muted)"><button class="underline" onclick="resetDemo()">Restablecer datos de ejemplo</button></p>
+  </section>
+</main>
+
+<!-- ===================== PANEL LATERAL DE DETALLE ===================== -->
+<div id="drawerOverlay" class="fixed inset-0 z-40 hidden" style="background:rgba(16,28,43,.5)" onclick="closeDrawer()"></div>
+<aside id="drawer" class="fixed top-0 right-0 z-50 h-full w-full max-w-xl bg-white shadow-2xl flex flex-col translate-x-full" aria-hidden="true" role="dialog" aria-label="Detalle de factura">
+  <div class="px-6 py-4 border-b flex items-start justify-between gap-3" style="border-color:var(--line)">
+    <div>
+      <h3 class="text-lg font-extrabold" id="drawerTitle">Factura</h3>
+      <p class="hint" id="drawerSub"></p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="closeDrawer()" aria-label="Cerrar">Cerrar</button>
+  </div>
+  <div id="drawerBody" class="flex-1 overflow-y-auto scroll p-6 space-y-6 text-sm"></div>
+  <div id="drawerFoot" class="px-6 py-4 border-t bg-[#f6f8fa] space-y-3" style="border-color:var(--line)"></div>
+</aside>
+
+<!-- ===================== MODAL: REGISTRAR PAGO ===================== -->
+<div id="modalPay" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
+  <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+      <h3 class="font-extrabold">Registrar pago</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalPay')">Cancelar</button>
+    </div>
+    <form onsubmit="submitPay(event)" class="p-6 space-y-4 overflow-y-auto scroll">
+      <input type="hidden" id="payId">
+      <div id="paySummary" class="rounded-lg p-3 text-sm space-y-1" style="background:#f6f8fa;border:1px solid var(--line)"></div>
+      <div id="payBeneficiary"></div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="label" for="payDate">Fecha de pago</label>
+          <input class="input" type="date" id="payDate" required>
+        </div>
+        <div>
+          <label class="label" for="payMethod">Método</label>
+          <select class="input" id="payMethod">
+            <option>Transferencia SPEI</option>
+            <option>Transferencia internacional (SWIFT)</option>
+            <option>Cheque nominativo</option>
+            <option>Tarjeta corporativa</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="payBank">Banco desde el que pagas</label>
+          <input class="input" type="text" id="payBank" required placeholder="Ej. BBVA">
+        </div>
+        <div>
+          <label class="label" for="payRef">Número de comprobante de pago</label>
+          <input class="input" type="text" id="payRef" required placeholder="Ej. TR-994821038">
+        </div>
+      </div>
+      <div>
+        <label class="label" for="payNotes">Notas</label>
+        <input class="input" type="text" id="payNotes" placeholder="Opcional">
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modalPay')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Marcar como pagada</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: ACCESO ===================== -->
+<div id="modalLogin" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
+  <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl overflow-hidden">
+    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+      <h3 class="font-extrabold" id="loginTitle">Acceso</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalLogin')">Cancelar</button>
+    </div>
+    <form onsubmit="submitLogin(event)" class="p-6 space-y-4">
+      <p class="text-sm" style="color:var(--muted)">Tu nombre quedará registrado en el historial de cada decisión.</p>
+      <div>
+        <label class="label" for="loginName">Tu nombre</label>
+        <input class="input" type="text" id="loginName" required autocomplete="name">
+      </div>
+      <div>
+        <label class="label" for="loginPin">Clave de acceso</label>
+        <input class="input" type="password" id="loginPin" required autocomplete="current-password">
+        <p id="loginError" class="hidden mt-1 text-sm font-semibold text-rose-700">La clave no es correcta. Inténtalo de nuevo.</p>
+      </div>
+      <button class="btn btn-primary w-full" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: GOOGLE DRIVE ===================== -->
+<div id="modalDrive" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
+  <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
+      <h3 class="font-extrabold">Respaldo en Google Drive</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalDrive')">Cerrar</button>
+    </div>
+    <div class="p-6 space-y-4 overflow-y-auto scroll text-sm">
+      <p style="color:var(--muted)">Una página web no puede escribir en tu Drive con solo un enlace. Se usa un puente gratuito de Google Apps Script; pega aquí su URL.</p>
+      <div>
+        <label class="label" for="inputDriveWebhook">URL de la aplicación web (termina en /exec)</label>
+        <input class="input text-xs" type="url" id="inputDriveWebhook" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div>
+        <label class="label" for="inputDriveFolder">Carpeta de destino</label>
+        <input class="input text-xs bg-slate-100" type="text" id="inputDriveFolder" readonly>
+      </div>
+      <div id="driveTestResult" class="hidden rounded-lg p-3 text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t bg-[#f6f8fa] flex justify-between gap-2" style="border-color:var(--line)">
+      <button class="btn btn-ghost" onclick="testDriveConnection()">Probar conexión</button>
+      <button class="btn btn-primary" onclick="saveDriveWebhookUrl()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== AVISOS ===================== -->
+<div id="toast" class="fixed bottom-5 right-5 z-[70] max-w-sm flex items-start gap-3 px-4 py-3 rounded-lg shadow-xl text-sm font-semibold text-white transition-all duration-300 opacity-0 translate-y-6 pointer-events-none" style="background:var(--ink)" role="status" aria-live="polite">
+  <span id="toastIcon" class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-teal-500">&#10003;</span>
+  <p id="toastMsg"></p>
+</div>
+
+<script>
+/* =====================================================================
+   CONFIGURACIÓN DEL SISTEMA
+   ===================================================================== */
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAihAR2H_bBBx69lVOtoRyjxXDQYdBpwXAMKoNbn1x3KqbNbvyYOkRz/exec';
+
+const CONFIG = {
+  companyName: 'Jet Mach Mexico, S.A. de C.V.',
+  companyRfc: 'JMM040707HL9',
+  pins: { gerente: '246810', tesoreria: '159753' },
+  driveFolderId: '1YDis04HIPM9rxU5De15Hu8syV5JeWUYz',
+  storageKey: 'portal_facturas_v2'
+};
+
+const STATUS = {
+  PENDIENTE: { label: 'Por revisar',          supplier: 'En revisión de gerencia',     cls: 'bg-amber-100 text-amber-900' },
+  APROBADA:  { label: 'Aprobada, por pagar',  supplier: 'Aprobada, en espera de pago', cls: 'bg-sky-100 text-sky-900' },
+  PAGADA:    { label: 'Pagada',               supplier: 'Pagada',                      cls: 'bg-emerald-100 text-emerald-900' },
+  RECHAZADA: { label: 'Rechazada',            supplier: 'Rechazada',                   cls: 'bg-rose-100 text-rose-900' }
+};
+
+/* ===================== UTILIDADES ===================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtNum = n => (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtMoney = (a, c = 'MXN') => `${c === 'USD' ? 'US$' : '$'}${fmtNum(a)} ${c}`;
+const fmtDate = iso => {
+  if (!iso) return '-';
+  const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso);
+  return isNaN(d) ? esc(iso) : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+const shortFolio = f => { f = String(f ?? ''); return f.length > 20 ? `${f.slice(0, 8)}…${f.slice(-4)}` : f; };
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const sumByCurrency = list => list.reduce((a, i) => { a[i.currency] = (a[i.currency] || 0) + (Number(i.amount) || 0); return a; }, { MXN: 0, USD: 0 });
+const findInv = id => invoices.find(i => i.id === id);
+const statusBadge = (s, supplier = false) => `<span class="inline-block text-xs font-bold px-2.5 py-1 rounded-full ${STATUS[s].cls}">${supplier ? STATUS[s].supplier : STATUS[s].label}</span>`;
+
+let toastTimer;
+function toast(msg, type = 'info') {
+  $('toastMsg').textContent = msg;
+  const icon = $('toastIcon');
+  icon.className = 'w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ' +
+    (type === 'error' ? 'bg-rose-500' : type === 'success' ? 'bg-emerald-500' : 'bg-sky-500');
+  icon.textContent = type === 'error' ? '!' : type === 'success' ? '\u2713' : 'i';
+  const t = $('toast');
+  t.classList.remove('opacity-0', 'translate-y-6');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('opacity-0', 'translate-y-6'), 4200);
+}
+function openModal(id) { const el = $(id); el.classList.remove('hidden'); el.classList.add('flex'); }
+function closeModal(id) { const el = $(id); el.classList.add('hidden'); el.classList.remove('flex'); }
+
+/* ===================== DATOS ===================== */
+const H = (type, at, by, note = '') => ({ type, at, by, note });
+
+function seedInvoices() {
+  const R = CONFIG.companyRfc;
+  return [
+    {
+      id: 'FAC-0001', origin: 'nacional', supplierName: 'Soluciones Tecnológicas del Norte S.A. de C.V.', rfc: 'STN190520AB3',
+      email: 'facturas@tecnonorte.com', folio: 'F-8942', uuid: '8F2B6C1A-3D4E-4F50-9A7B-1C2D3E4F5A6B', receptorRfc: R,
+      poNumber: 'OC-2026-042', amount: 34800, currency: 'MXN', country: 'México', bankName: '', swift: '', iban: '',
+      concept: 'Licenciamiento de software anual y soporte técnico en la nube', invoiceDate: '2026-10-22', submissionDate: '2026-10-23',
+      pdfFile: 'Factura_F-8942.pdf', xmlFile: 'Factura_F-8942.xml', pdfDriveUrl: null, xmlDriveUrl: null, driveInvoiceFolderId: null,
+      status: 'PENDIENTE', rejectionReason: null, approval: null, paymentInfo: null,
+      history: [H('CREADA', '2026-10-23T10:15:00-06:00', 'Proveedor')]
+    },
+    {
+      id: 'FAC-0002', origin: 'nacional', supplierName: 'Distribuidora Papelera & Suministros MX', rfc: 'DPS140211KZ8',
+      email: 'cobranza@papeleramx.com', folio: 'B-1033', uuid: '3C9D1E7F-5A2B-4C8D-8E1F-0A9B7C6D5E4F', receptorRfc: R,
+      poNumber: 'OC-2026-039', amount: 8520.5, currency: 'MXN', country: 'México', bankName: '', swift: '', iban: '',
+      concept: 'Insumos de papelería para oficinas corporativas, septiembre', invoiceDate: '2026-10-19', submissionDate: '2026-10-20',
+      pdfFile: 'Factura_B1033.pdf', xmlFile: 'Factura_B1033.xml', pdfDriveUrl: null, xmlDriveUrl: null, driveInvoiceFolderId: null,
+      status: 'APROBADA', rejectionReason: null,
+      approval: { by: 'Gerencia (ejemplo)', at: '2026-10-21T11:30:00-06:00', note: 'Coincide con la OC.' }, paymentInfo: null,
+      history: [H('CREADA', '2026-10-20T09:05:00-06:00', 'Proveedor'), H('APROBADA', '2026-10-21T11:30:00-06:00', 'Gerencia (ejemplo)', 'Coincide con la OC.')]
+    }
+  ];
+}
+function loadInvoices() {
+  try { const raw = localStorage.getItem(CONFIG.storageKey); if (raw) return JSON.parse(raw); } catch (e) {}
+  return seedInvoices();
+}
+function save() { try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(invoices)); } catch (e) { console.warn('No se pudo guardar', e); } }
+function resetDemo() {
+  if (!confirm('Esto borra las facturas actuales y restaura los datos de ejemplo. ¿Continuar?')) return;
+  invoices = seedInvoices();
+  localStorage.setItem('portal_invoice_seq', '3'); // Reinicia el contador consecutivo
+  save(); closeDrawer(); renderAll(); toast('Datos de ejemplo restaurados', 'info');
+}
+
+let invoices = loadInvoices();
+const fileStore = {};
+const ui = { view: 'supplier', gFilter: 'PENDIENTE', tFilter: 'APROBADA', tCurrency: 'ALL', drawerId: null };
+let origin = 'nacional', formCurrency = 'MXN';
+let files = { pdf: null, xml: null };
+let formMeta = { uuid: '', receptorRfc: '' };
+
+/* ===================== SESIONES ===================== */
+function loadAuth() { try { return JSON.parse(sessionStorage.getItem('portal_auth')) || { gerente: null, tesoreria: null }; } catch (e) { return { gerente: null, tesoreria: null }; } }
+function saveAuth() { try { sessionStorage.setItem('portal_auth', JSON.stringify(auth)); } catch (e) {} }
+let auth = loadAuth();
+let loginRole = null;
+
+function openLogin(role) {
+  loginRole = role;
+  $('loginTitle').textContent = role === 'gerente' ? 'Acceso de gerencia' : 'Acceso de tesorería';
+  $('loginPin').value = ''; $('loginError').classList.add('hidden');
+  try { $('loginName').value = localStorage.getItem('portal_last_name') || ''; } catch (e) {}
+  openModal('modalLogin');
+  setTimeout(() => ($('loginName').value ? $('loginPin') : $('loginName')).focus(), 80);
+}
+function submitLogin(e) {
+  e.preventDefault();
+  const name = $('loginName').value.trim(), pin = $('loginPin').value.trim();
+  if (pin !== CONFIG.pins[loginRole]) { $('loginError').classList.remove('hidden'); $('loginPin').focus(); return; }
+  auth[loginRole] = { name }; saveAuth();
+  try { localStorage.setItem('portal_last_name', name); } catch (err) {}
+  closeModal('modalLogin');
+  go(loginRole);
+  toast(`Bienvenido, ${name}`, 'success');
+}
+function logout() {
+  auth = { gerente: null, tesoreria: null }; saveAuth(); closeDrawer(); go('supplier'); toast('Sesión cerrada', 'info');
+}
+
+/* ===================== NAVEGACIÓN ===================== */
+function go(view) {
+  if ((view === 'gerente' || view === 'tesoreria') && !auth[view]) { openLogin(view); return; }
+  ui.view = view;
+  ['supplier', 'gerente', 'tesoreria'].forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
+  closeDrawer();
+  renderAll();
+  window.scrollTo({ top: 0 });
+}
+function renderNav() {
+  const pend = invoices.filter(i => i.status === 'PENDIENTE').length;
+  const toPay = invoices.filter(i => i.status === 'APROBADA').length;
+  const items = [
+    ['supplier', 'Proveedores', 0], 
+    ['gerente', 'Gerencia', pend], 
+    ['tesoreria', 'Tesorería', toPay]
+  ];
+  $('mainNav').innerHTML = items.map(([v, label, n]) => {
+    return `<button onclick="go('${v}')" aria-pressed="${ui.view === v}" class="flex items-center gap-1.5">
+      <span>${label}</span>
+      ${n ? `<span class="text-[11px] font-bold px-1.5 rounded-full bg-amber-100 text-amber-900">${n}</span>` : ''}
+    </button>`;
+  }).join('');
+  $('btnLogout').classList.toggle('hidden', !(auth.gerente || auth.tesoreria));
+}
+function renderAll() {
+  renderNav();
+  if (ui.view === 'gerente') renderGerente();
+  if (ui.view === 'tesoreria') renderTesoreria();
+  if (ui.drawerId) renderDrawer();
+}
+
+/* ===================== PROVEEDOR ===================== */
+function setSupTab(tab) {
+  $('supTabUpload').setAttribute('aria-pressed', tab === 'upload');
+  $('supTabTrack').setAttribute('aria-pressed', tab === 'track');
+  $('panelUpload').classList.toggle('hidden', tab !== 'upload');
+  $('panelTrack').classList.toggle('hidden', tab !== 'track');
+}
+function setCurrency(c) {
+  formCurrency = c;
+  $('curMXN').setAttribute('aria-pressed', c === 'MXN');
+  $('curUSD').setAttribute('aria-pressed', c === 'USD');
+}
+function setOrigin(o) {
+  origin = o;
+  const nac = o === 'nacional';
+  $('segNacional').setAttribute('aria-pressed', nac);
+  $('segInternacional').setAttribute('aria-pressed', !nac);
+  $('intlBlock').classList.toggle('hidden', nac);
+  $('formTitle').textContent = nac ? 'Factura nacional' : 'Factura internacional';
+  $('formSubtitle').textContent = nac
+    ? 'Sube el PDF y el XML; los datos se llenan solos y tú los confirmas.'
+    : 'Sube tu invoice en PDF y confirma los datos. Indica dónde recibirás la transferencia.';
+  $('lblSupplier').textContent = nac ? 'Razón social' : 'Nombre de la empresa';
+  $('lblRfc').textContent = nac ? 'RFC' : 'Tax ID, EIN o VAT';
+  $('lblFolio').textContent = nac ? 'Folio de la factura' : 'Número de invoice';
+  $('xmlInput').accept = nac ? '.xml,text/xml' : '.pdf,.xml,image/*';
+  if (!files.xml) {
+    $('xmlLabel').textContent = nac ? 'Comprobante fiscal (XML)' : 'Soporte fiscal (W-8, contrato u otro)';
+    $('xmlSub').textContent = nac ? 'Es la fuente más confiable: trae RFC, folio fiscal, importe y moneda.' : 'Opcional. Acepta PDF, XML o imagen.';
+  }
+  if (!$('invoiceAmount').value) setCurrency(nac ? 'MXN' : 'USD');
+}
+function flash(id) { const el = $(id); if (!el) return; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
+function fill(id, val) { if (val === undefined || val === null || val === '') return; $(id).value = val; flash(id); }
+
+function setDropState(kind, file) {
+  const zone = $(kind + 'Zone');
+  zone.classList.toggle('done', !!file);
+  if (file) {
+    $(kind + 'Label').textContent = '\u2713 ' + file.name;
+    $(kind + 'Sub').textContent = `${(file.size / 1024).toFixed(1)} KB, listo para enviar`;
+  }
+}
+function dzOver(e, id) { e.preventDefault(); $(id).classList.add('over'); }
+function dzLeave(e, id) { e.preventDefault(); $(id).classList.remove('over'); }
+function dzDrop(e, kind) {
+  e.preventDefault(); $(kind + 'Zone').classList.remove('over');
+  const f = e.dataTransfer?.files?.[0]; if (!f) return;
+  kind === 'pdf' ? processPdfFile(f) : processSupportFile(f);
+}
+function onPdfChosen(e) { const f = e.target.files?.[0]; if (f) processPdfFile(f); }
+function onXmlChosen(e) { const f = e.target.files?.[0]; if (f) processSupportFile(f); }
+
+function showExtract(source, fileName, o) {
+  $('extractSource').textContent = source;
+  $('extractFile').textContent = fileName;
+  $('exSupplier').textContent = o.supplier || 'No detectado';
+  $('exRfc').textContent = o.rfc || 'No detectado';
+  $('exFolio').textContent = o.folio || 'No detectado';
+  $('exAmount').textContent = o.amount ? fmtMoney(o.amount, o.currency) : 'No detectado';
+  $('rawText').value = o.raw || ''; $('rawTextBox').classList.toggle('hidden', !o.raw);
+  const w = $('extractWarn');
+  if (o.warn) { w.textContent = o.warn; w.classList.remove('hidden'); } else w.classList.add('hidden');
+  $('extractCard').classList.remove('hidden');
+}
+
+/* ----- XML ----- */
+function processSupportFile(file) {
+  const isXml = /\.xml$/i.test(file.name) || file.type === 'text/xml';
+  if (origin === 'nacional' && !isXml) { toast('Para factura nacional adjunta el XML del CFDI', 'error'); return; }
+  files.xml = file; setDropState('xml', file);
+  if (!isXml) return;
+  const reader = new FileReader();
+  reader.onload = ev => parseAndExtractXml(ev.target.result, file.name);
+  reader.onerror = () => toast('No se pudo leer el archivo XML', 'error');
+  reader.readAsText(file);
+}
+function parseAndExtractXml(xml, fileName) {
+  try {
+    const doc = new DOMParser().parseFromString(xml, 'text/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('XML inválido');
+    const find = name => { for (const el of doc.getElementsByTagName('*')) { if ((el.localName || el.nodeName.split(':').pop()) === name) return el; } return null; };
+    const comp = find('Comprobante'), em = find('Emisor'), rec = find('Receptor'), conc = find('Concepto'), timbre = find('TimbreFiscalDigital');
+    if (!comp || !em) throw new Error('No parece un CFDI');
+    const a = (el, n) => el?.getAttribute(n) || '';
+
+    const name = a(em, 'Nombre'), rfc = a(em, 'Rfc').toUpperCase();
+    const serie = a(comp, 'Serie'), folioRaw = a(comp, 'Folio');
+    const uuid = a(timbre, 'UUID').toUpperCase();
+    const folio = uuid || (serie && folioRaw ? `${serie}-${folioRaw}` : folioRaw);
+    const total = a(comp, 'Total'), moneda = (a(comp, 'Moneda') || 'MXN').toUpperCase();
+    const recRfc = a(rec, 'Rfc').toUpperCase();
+
+    setOrigin('nacional');
+    fill('supplierName', name); fill('supplierRfc', rfc); fill('invoiceFolio', folio);
+    if (total) { fill('invoiceAmount', parseFloat(total).toFixed(2)); }
+    fill('invoiceConcept', a(conc, 'Descripcion'));
+    fill('invoiceDate', a(comp, 'Fecha').slice(0, 10));
+
+    let warn = '';
+    if (moneda === 'MXN' || moneda === 'USD') setCurrency(moneda);
+    else warn = `La factura viene en ${moneda}. Este portal solo recibe MXN o USD; confirma con tu contacto de compras.`;
+    if (recRfc && recRfc !== CONFIG.companyRfc) warn = (warn ? warn + ' ' : '') + `El XML está emitido al RFC ${recRfc}, no al de ${CONFIG.companyName}. Gerencia lo verá marcado.`;
+
+    formMeta.uuid = uuid; formMeta.receptorRfc = recRfc;
+    showExtract('Datos leídos del CFDI (XML)', fileName, { supplier: name, rfc, folio, amount: total, currency: formCurrency, warn });
+    toast('Datos del XML cargados', 'success');
+  } catch (err) {
+    console.error(err);
+    toast('No se pudieron leer los datos de ese XML. Captúralos a mano.', 'error');
+  }
+}
+
+/* ----- PDF ----- */
+async function processPdfFile(file) {
+  files.pdf = file; setDropState('pdf', file);
+  $('processing').classList.remove('hidden');
+  try {
+    const buf = await file.arrayBuffer();
+    if (!window.pdfjsLib) throw new Error('pdf.js no disponible');
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    let text = '';
+    for (let i = 1; i <= Math.min(pdf.numPages, 4); i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += ' ' + content.items.map(it => it.str).join(' ');
+    }
+    if (text.trim().length < 20) { toast('El PDF no tiene texto legible. Captura los datos a mano.', 'info'); return; }
+    extractFromPdfText(text, file.name);
+  } catch (err) {
+    console.warn('Lectura de PDF:', err);
+    toast('PDF adjuntado. Captura los datos a mano.', 'info');
+  } finally { $('processing').classList.add('hidden'); }
+}
+
+const AMT = '([0-9]{1,3}(?:,[0-9]{3})*(?:\\.[0-9]{2})?|[0-9]+(?:\\.[0-9]{2})?)';
+const toNum = s => parseFloat(String(s).replace(/,/g, ''));
+
+function extractFromPdfText(raw, fileName) {
+  const text = raw.replace(/\s+/g, ' ');
+  const isCfdi = /CFDI|Comprobante Fiscal|Folio Fiscal|Timbre Fiscal/i.test(text);
+  const out = { supplier: '', rfc: '', folio: '', amount: '', currency: 'MXN', concept: '' };
+
+  if (isCfdi) {
+    setOrigin('nacional');
+    const RFC_G = '([A-ZÑ&]{3,4}\\d{6}[A-Z0-9]{3})';
+    out.rfc = ((text.match(new RegExp('RFC\\s*(?:del\\s*)?Emisor\\s*:?\\s*' + RFC_G, 'i')) || [])[1] || '').toUpperCase();
+    const uuidRaw = (text.match(/[0-9A-F]{8}\s?-\s?[0-9A-F]{4}\s?-\s?[0-9A-F]{4}\s?-\s?[0-9A-F]{4}\s?-\s?[0-9A-F]{12}/i) || [])[0];
+    const uuid = uuidRaw ? uuidRaw.replace(/\s+/g, '').toUpperCase() : '';
+    if (uuid) formMeta.uuid = uuid;
+    out.folio = uuid || '';
+    const totals = [...text.matchAll(new RegExp('(?:Importe\\s+Total|Total\\s+a\\s+pagar|Total)\\s*:?\\s*\\$?\\s*' + AMT, 'gi'))].map(m => toNum(m[1])).filter(n => n > 0);
+    if (totals.length) out.amount = Math.max(...totals).toFixed(2);
+    out.currency = /\bUSD\b|D[oó]lares/i.test(text) ? 'USD' : 'MXN';
+  } else {
+    setOrigin('internacional');
+    out.folio = (text.match(/Invoice\s*(?:No\.?|Number|#)\s*[:#]?\s*([A-Za-z0-9\-]+)/i) || [])[1] || '';
+    let amt = (text.match(new RegExp('(?:BALANCE\\s+DUE|TOTAL)\\s*:?\\s*\\$?\\s*' + AMT, 'i')) || [])[1];
+    if (amt) out.amount = toNum(amt).toFixed(2);
+    out.currency = 'USD';
+  }
+
+  fill('supplierName', out.supplier); fill('supplierRfc', out.rfc); fill('invoiceFolio', out.folio);
+  fill('invoiceAmount', out.amount); fill('invoiceConcept', out.concept);
+  if (out.amount) setCurrency(out.currency);
+
+  showExtract(origin === 'nacional' ? 'Datos leídos de la factura (PDF)' : 'Datos leídos del invoice (PDF)', fileName, {
+    supplier: out.supplier, rfc: out.rfc, folio: out.folio, amount: out.amount, currency: out.currency, raw: text
+  });
+}
+
+/* ----- Envío ----- */
+function findDuplicate(inv, ignoreId) {
+  return invoices.find(o => o.id !== ignoreId && o.status !== 'RECHAZADA' && (
+    (o.rfc.toUpperCase() === inv.rfc.toUpperCase() && o.folio.toLowerCase() === inv.folio.toLowerCase()) ||
+    (inv.uuid && o.uuid && o.uuid.toUpperCase() === inv.uuid.toUpperCase())
+  ));
+}
+async function submitInvoice(e) {
+  e.preventDefault();
+  const v = id => $(id).value.trim();
+  const rfc = v('supplierRfc').toUpperCase(), folio = v('invoiceFolio'), amount = parseFloat($('invoiceAmount').value);
+
+  if (!files.pdf) { toast('Adjunta el PDF de la factura', 'error'); return; }
+  if (origin === 'nacional' && !files.xml) { toast('Adjunta el XML del CFDI', 'error'); return; }
+
+  const draft = { rfc, folio, uuid: formMeta.uuid };
+  const dup = findDuplicate(draft);
+  if (dup) { toast(`Ya existe la factura ${dup.folio} de este proveedor.`, 'error'); return; }
+
+  const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    // Generación del Folio Consecutivo Interno (FAC-0001, FAC-0002...)
+    let nextNum = parseInt(localStorage.getItem('portal_invoice_seq') || '3', 10);
+    const autoFolio = 'FAC-' + String(nextNum).padStart(4, '0');
+    localStorage.setItem('portal_invoice_seq', (nextNum + 1).toString());
+
+    const inv = {
+      id: autoFolio,
+      origin, supplierName: v('supplierName'), rfc, email: v('supplierEmail'), folio,
+      uuid: formMeta.uuid, receptorRfc: formMeta.receptorRfc,
+      poNumber: v('invoicePo'), matricula: v('invoiceMatricula').toUpperCase(), amount, currency: formCurrency,
+      country: origin === 'internacional' ? v('supplierCountry') : 'México',
+      bankName: origin === 'internacional' ? v('supplierBank') : '',
+      swift: origin === 'internacional' ? v('supplierSwift').toUpperCase() : '',
+      iban: origin === 'internacional' ? v('supplierIban') : '',
+      concept: v('invoiceConcept'), invoiceDate: $('invoiceDate').value || '', submissionDate: todayStr(),
+      pdfFile: files.pdf.name, xmlFile: files.xml ? files.xml.name : '',
+      pdfDriveUrl: null, xmlDriveUrl: null, driveInvoiceFolderId: null,
+      status: 'PENDIENTE', rejectionReason: null, approval: null, paymentInfo: null,
+      history: [H('CREADA', new Date().toISOString(), 'Proveedor')]
+    };
+
+    if (getDriveWebhookUrl()) {
+      toast('Guardando archivos en Google Drive...', 'info');
+      const res = await uploadToGoogleDrive(inv, files.pdf, files.xml);
+      if (res && res.success) {
+        inv.driveInvoiceFolderId = res.invoiceFolderId; inv.pdfDriveUrl = res.pdfUrl; inv.xmlDriveUrl = res.xmlUrl;
+      }
+    }
+
+    fileStore[inv.id] = { pdf: files.pdf, xml: files.xml };
+    invoices.unshift(inv); save(); renderNav();
+
+    $('successCode').textContent = inv.id;
+    $('successText').textContent = `${inv.supplierName}, folio de factura ${inv.folio} por ${fmtMoney(inv.amount, inv.currency)}. Gerencia ya puede revisarla.`;
+    $('formWrap').classList.add('hidden'); $('successCard').classList.remove('hidden');
+    $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id; // Busca también por el folio consecutivo FAC
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    console.error(err); toast('No se pudo registrar la factura', 'error');
+  } finally { btn.disabled = false; btn.textContent = 'Enviar a revisión'; }
+}
+function resetForm() {
+  $('invoiceForm').reset();
+  files = { pdf: null, xml: null }; formMeta = { uuid: '', receptorRfc: '' };
+  ['pdf', 'xml'].forEach(k => { $(k + 'Zone').classList.remove('done'); $(k + 'Input').value = ''; });
+  $('pdfLabel').textContent = 'Factura en PDF';
+  $('extractCard').classList.add('hidden');
+  setOrigin(origin);
+}
+function newInvoice() { resetForm(); $('successCard').classList.add('hidden'); $('formWrap').classList.remove('hidden'); }
+
+/* ----- Seguimiento ----- */
+function routeHtml(inv) {
+  const reached = { PENDIENTE: 0, APROBADA: 1, PAGADA: 2, RECHAZADA: 0 }[inv.status];
+  return `<div class="flex items-center"><span class="w-4 h-4 rounded-full bg-teal-500"></span><span class="wp-line mx-2 ${reached > 0 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 1 ? 'bg-teal-500' : 'bg-gray-300'}"></span><span class="wp-line mx-2 ${reached > 1 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 2 ? 'bg-teal-500' : 'bg-gray-300'}"></span></div>`;
+}
+function doTrack(e) {
+  e.preventDefault();
+  const rfc = $('trackRfc').value.trim().toUpperCase(), folio = $('trackFolio').value.trim().toLowerCase();
+  const res = invoices.filter(i => i.rfc.toUpperCase() === rfc && (i.folio.toLowerCase() === folio || i.id.toLowerCase() === folio || (i.uuid || '').toLowerCase() === folio));
+  const box = $('trackResult');
+  if (!res.length) {
+    box.innerHTML = `<div class="panel p-6 text-sm"><p class="font-bold">No encontramos esa factura.</p></div>`;
+    return;
+  }
+  box.innerHTML = res.map(inv => `<div class="panel p-6">
+    <div class="flex justify-between gap-3">
+      <div><p class="text-lg font-extrabold">Código ${esc(inv.id)} (Factura: ${esc(inv.folio)})</p><p class="hint">${esc(inv.supplierName)}</p></div>
+      <div class="text-right"><p class="text-lg font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p><div>${statusBadge(inv.status, true)}</div></div>
+    </div>
+    <div class="mt-4">${routeHtml(inv)}</div>
+  </div>`).join('');
+}
+
+/* ===================== TABLAS ===================== */
+function filterList(status, term, currency) {
+  term = (term || '').toLowerCase().trim();
+  return invoices.filter(i =>
+    (status === 'ALL' || i.status === status) &&
+    (currency === 'ALL' || i.currency === currency) &&
+    (!term || [i.id, i.supplierName, i.rfc, i.folio, i.concept].some(x => (x || '').toLowerCase().includes(term)))
+  );
+}
+function chipsHtml(current, setter, order) {
+  const labels = { PENDIENTE: 'Por revisar', APROBADA: 'Por pagar', PAGADA: 'Pagadas', RECHAZADA: 'Rechazadas', ALL: 'Todas' };
+  return order.map(s => {
+    const n = s === 'ALL' ? invoices.length : invoices.filter(i => i.status === s).length;
+    return `<button class="chip" aria-pressed="${current === s}" onclick="${setter}('${s}')">${labels[s]}<span class="n">${n}</span></button>`;
+  }).join('');
+}
+function kpi(title, count, list) {
+  const s = sumByCurrency(list);
+  return `<div class="p-5"><p class="text-sm font-bold" style="color:var(--muted)">${title}</p><p class="text-3xl font-extrabold mt-1">${count}</p><p class="text-sm font-semibold mt-1">${fmtMoney(s.MXN, 'MXN')}</p><p class="text-sm font-semibold">${fmtMoney(s.USD, 'USD')}</p></div>`;
+}
+function rowHtml(inv, role) {
+  return `<tr class="clickable" onclick="openDrawer('${inv.id}')">
+    <td><span class="font-bold text-teal-800 bg-teal-50 px-2 py-1 rounded text-xs">${esc(inv.id)}</span></td>
+    <td><p class="font-bold">${esc(shortFolio(inv.folio))}</p></td>
+    <td><p class="font-semibold">${esc(inv.supplierName)}</p><p class="text-xs" style="color:var(--muted)">${esc(inv.rfc)}</p></td>
+    <td class="text-xs">${fmtDate(inv.submissionDate)}</td>
+    <td class="text-xs"><p class="truncate max-w-[200px]">${esc(inv.concept)}</p></td>
+    <td class="text-right"><p class="font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></td>
+    <td>${statusBadge(inv.status)}</td>
+    <td class="text-right"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openDrawer('${inv.id}')">Ver</button></td>
+  </tr>`;
+}
+const emptyRow = '<tr><td colspan="8" class="text-center py-10" style="color:var(--muted)">No hay facturas.</td></tr>';
+
+function setGFilter(s) { ui.gFilter = s; renderGerente(); }
+function setTFilter(s) { ui.tFilter = s; renderTesoreria(); }
+
+function renderGerente() {
+  if (!auth.gerente) return;
+  $('gerenteUser').textContent = auth.gerente.name;
+  const by = s => invoices.filter(i => i.status === s);
+  $('gKpis').innerHTML = kpi('Esperan tu visto bueno', by('PENDIENTE').length, by('PENDIENTE')) + kpi('Aprobadas', by('APROBADA').length, by('APROBADA')) + kpi('Rechazadas', by('RECHAZADA').length, by('RECHAZADA'));
+  $('gChips').innerHTML = chipsHtml(ui.gFilter, 'setGFilter', ['PENDIENTE', 'APROBADA', 'RECHAZADA', 'PAGADA', 'ALL']);
+  const list = filterList(ui.gFilter, $('gSearch').value, 'ALL');
+  $('gBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'gerente')).join('') : emptyRow;
+}
+function renderTesoreria() {
+  if (!auth.tesoreria) return;
+  $('tesoreriaUser').textContent = auth.tesoreria.name;
+  const by = s => invoices.filter(i => i.status === s);
+  $('tKpis').innerHTML = kpi('Por pagar', by('APROBADA').length, by('APROBADA')) + kpi('Pagadas', by('PAGADA').length, by('PAGADA')) + kpi('En revisión', by('PENDIENTE').length, by('PENDIENTE'));
+  $('tChips').innerHTML = chipsHtml(ui.tFilter, 'setTFilter', ['APROBADA', 'PAGADA', 'ALL']);
+  const list = filterList(ui.tFilter, $('tSearch').value, ui.tCurrency);
+  $('tBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'tesoreria')).join('') : emptyRow;
+  updateDriveStatusUI();
+}
+
+/* ===================== DRAWER Y ACCIONES ===================== */
+function openDrawer(id) {
+  ui.drawerId = id; renderDrawer();
+  $('drawerOverlay').classList.remove('hidden');
+  $('drawer').classList.remove('translate-x-full');
+}
+function closeDrawer() {
+  ui.drawerId = null;
+  $('drawerOverlay').classList.add('hidden');
+  $('drawer').classList.add('translate-x-full');
+}
+function renderDrawer() {
+  const inv = findInv(ui.drawerId); if (!inv) { closeDrawer(); return; }
+  $('drawerTitle').textContent = `Registro ${inv.id} - Folio ${shortFolio(inv.folio)}`;
+  $('drawerSub').textContent = `${inv.supplierName}`;
+  $('drawerBody').innerHTML = `
+    <div class="flex justify-between items-center">${statusBadge(inv.status)}<p class="text-2xl font-extrabold">${fmtMoney(inv.amount, inv.currency)}</p></div>
+    <div class="space-y-2 text-sm mt-4">
+      <p><b>ID Registro Interno:</b> ${esc(inv.id)}</p>
+      <p><b>Proveedor:</b> ${esc(inv.supplierName)}</p>
+      <p><b>RFC:</b> ${esc(inv.rfc)}</p>
+      <p><b>Folio Emisor:</b> ${esc(inv.folio)}</p>
+      <p><b>Concepto:</b> ${esc(inv.concept)}</p>
+      <p><b>Orden de compra:</b> ${esc(inv.poNumber || 'N/A')}</p>
+      <p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p>
+    </div>
+    ${inv.status === 'RECHAZADA' && inv.rejectionReason ? `<div class="rounded-lg p-3 text-sm space-y-1 mt-4" style="background:#fef3f2;border:1px solid #f0b4b4;color:#b42318">
+      <p class="font-bold">Motivo del rechazo</p>
+      <p style="color:#101c2b">${esc(inv.rejectionReason)}</p>
+    </div>` : ''}
+    ${inv.status === 'PAGADA' && inv.paymentInfo ? `<div class="rounded-lg p-3 text-sm space-y-1 mt-4" style="background:#ecfdf3;border:1px solid #abefc6">
+      <p class="font-bold">Pago registrado</p>
+      <p><b>Comprobante:</b> ${esc(inv.paymentInfo.ref)}</p>
+      <p><b>Fecha de pago:</b> ${fmtDate(inv.paymentInfo.date)}</p>
+      <p><b>Método:</b> ${esc(inv.paymentInfo.method)} &middot; ${esc(inv.paymentInfo.bank)}</p>
+      ${inv.paymentInfo.notes ? `<p><b>Notas:</b> ${esc(inv.paymentInfo.notes)}</p>` : ''}
+      <p class="text-xs" style="color:var(--muted)">Registrado por ${esc(inv.paymentInfo.by)}</p>
+    </div>` : ''}`;
+  
+  let foot = '';
+  if (ui.view === 'gerente' && inv.status === 'PENDIENTE') {
+    foot = `<div class="flex justify-end gap-2"><button class="btn btn-danger" onclick="doReject('${inv.id}')">Rechazar</button><button class="btn btn-primary" onclick="doApprove('${inv.id}')">Dar visto bueno</button></div>`;
+  } else if (ui.view === 'tesoreria' && inv.status === 'APROBADA') {
+    foot = `<button class="btn btn-primary w-full" onclick="openPay('${inv.id}')">Registrar pago</button>`;
+  }
+  if (ui.view === 'tesoreria') {
+    foot += `<button class="btn btn-danger w-full${foot ? ' mt-2' : ''}" onclick="doDelete('${inv.id}')">Eliminar factura</button>`;
+  }
+  $('drawerFoot').innerHTML = foot;
+  $('drawerFoot').classList.toggle('hidden', !foot);
+}
+
+function doApprove(id) {
+  const inv = findInv(id); if (!inv) return;
+  inv.status = 'APROBADA'; save(); renderAll(); toast('Visto bueno otorgado', 'success');
+}
+
+async function doReject(id) {
+  const inv = findInv(id); if (!inv) return;
+
+  const reason = prompt(`Escribe la razón por la cual se rechaza la factura ${inv.folio} de ${inv.supplierName}:`);
+  if (reason === null) return;
+  if (!reason.trim()) {
+    toast('Debes indicar una razón para poder rechazar la factura', 'error');
+    return;
+  }
+
+  inv.status = 'RECHAZADA';
+  inv.rejectionReason = reason.trim();
+  inv.history = inv.history || [];
+  inv.history.push(H('RECHAZADA', new Date().toISOString(), (auth.gerente && auth.gerente.name) || 'Gerencia', reason.trim()));
+
+  save();
+  renderAll();
+
+  if (!inv.email) {
+    toast('Factura rechazada (el proveedor no registró correo para avisos)', 'info');
+    return;
+  }
+
+  toast('Factura rechazada. Enviando notificación por correo...', 'info');
+
+  try {
+    const url = getDriveWebhookUrl();
+    if (!url) throw new Error('Sin URL de Apps Script');
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'notifyRejection',
+        rejectionData: {
+          email: inv.email,
+          supplierName: inv.supplierName,
+          autoFolio: inv.id,
+          folio: inv.folio,
+          matricula: inv.matricula || '',
+          amountFormatted: fmtMoney(inv.amount, inv.currency),
+          reason: reason.trim()
+        }
+      })
+    });
+
+    const out = await res.json();
+    if (out && out.success) toast('Correo de rechazo enviado al proveedor', 'success');
+    else throw new Error((out && out.error) || 'El script no confirmó el envío');
+  } catch (err) {
+    console.warn('Error enviando correo de rechazo:', err);
+    toast('Factura rechazada (no se pudo enviar el correo: ' + err.message + ')', 'info');
+  }
+}
+
+/* ===================== EXPORTAR A EXCEL (TESORERÍA) ===================== */
+const isoD = iso => { if (!iso) return ''; const d = new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso); return isNaN(d) ? String(iso) : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const isoDT = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? String(iso) : `${isoD(iso)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+
+function exportRows() {
+  return invoices.map(i => {
+    const p = i.paymentInfo || {}, a = i.approval || {};
+    return {
+      'ID Interno': i.id, 'Folio del emisor': i.folio, 'UUID': i.uuid || '', 'Proveedor': i.supplierName, 'RFC': i.rfc,
+      'Origen': i.origin === 'internacional' ? 'Internacional' : 'Nacional', 'País': i.country || '',
+      'Fecha de factura': isoD(i.invoiceDate), 'Fecha recibida': isoD(i.submissionDate),
+      'Orden de compra': i.poNumber || '', 'Matrícula': i.matricula || '', 'Concepto': i.concept || '',
+      'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
+      'Estatus': (STATUS[i.status] || {}).label || i.status,
+      'Visto bueno por': a.by || '', 'Fecha visto bueno': isoDT(a.at),
+      'Motivo de rechazo': i.rejectionReason || '',
+      'Fecha de pago': isoD(p.date), 'Método de pago': p.method || '', 'Banco de pago': p.bank || '',
+      'Comprobante de pago': p.ref || '', 'Pagado por': p.by || '', 'Notas del pago': p.notes || ''
+    };
+  });
+}
+function exportExcel() {
+  if (!invoices.length) { toast('No hay facturas para exportar', 'info'); return; }
+  const rows = exportRows(), name = `Paurema-Facturas-Proveedores_${todayStr()}`;
+  try {
+    if (!window.XLSX) throw new Error('XLSX no cargó');
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const heads = Object.keys(rows[0]);
+    ws['!cols'] = heads.map(h => ({ wch: Math.min(45, Math.max(h.length + 2, ...rows.map(r => String(r[h] ?? '').length + 2))) }));
+    ws['!autofilter'] = { ref: ws['!ref'] };
+    const mCol = heads.indexOf('Monto');
+    for (let r = 1; r <= rows.length; r++) { const c = ws[XLSX.utils.encode_cell({ r, c: mCol })]; if (c) c.z = '#,##0.00'; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Facturas');
+    XLSX.writeFile(wb, name + '.xlsx');
+    toast(`Excel generado con ${rows.length} factura(s)`, 'success');
+  } catch (err) {
+    console.warn('Excel no disponible, se exporta CSV', err);
+    const heads = Object.keys(rows[0]), q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const csv = '\ufeff' + [heads.map(q).join(',')].concat(rows.map(r => heads.map(h => q(r[h])).join(','))).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = name + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+    toast('No se pudo generar .xlsx; se descargó en CSV (abre en Excel)', 'info');
+  }
+}
+
+/* ===================== ELIMINAR FACTURAS (TESORERÍA) ===================== */
+function doDelete(id) {
+  const inv = findInv(id); if (!inv) return;
+  const extra = inv.status === 'PAGADA' ? '\n\nATENCIÓN: esta factura ya está PAGADA; se perderá también el registro del pago.' : '';
+  if (!confirm(`¿Eliminar el registro ${inv.id} (factura ${inv.folio}) de ${inv.supplierName} por ${fmtMoney(inv.amount, inv.currency)}?${extra}\n\nEsta acción no se puede deshacer.`)) return;
+  invoices = invoices.filter(i => i.id !== id);
+  delete fileStore[id];
+  save(); closeDrawer(); renderAll();
+  toast('Factura eliminada', 'success');
+}
+
+/* ===================== REGISTRO DE PAGO ===================== */
+function openPay(id) {
+  const inv = findInv(id); if (!inv || inv.status !== 'APROBADA') return;
+  $('payId').value = id;
+  $('paySummary').innerHTML = `<p><b>Registro:</b> ${esc(inv.id)}</p><p><b>Factura:</b> ${esc(shortFolio(inv.folio))}</p><p><b>Proveedor:</b> ${esc(inv.supplierName)}</p><p><b>Matrícula:</b> ${esc(inv.matricula || 'N/A')}</p><p><b>Monto a pagar:</b> ${fmtMoney(inv.amount, inv.currency)}</p>`;
+  $('payBeneficiary').innerHTML = inv.origin === 'internacional'
+    ? `<div class="rounded-lg p-3 text-sm space-y-1" style="background:#eef6fb;border:1px solid #c5def0"><p class="font-bold">Datos del beneficiario</p><p>${esc(inv.supplierName)} &middot; ${esc(inv.country)}</p><p>Banco: ${esc(inv.bankName)} &middot; SWIFT: ${esc(inv.swift)}</p><p>IBAN/Cuenta: ${esc(inv.iban)}</p></div>`
+    : '';
+  $('payDate').value = todayStr();
+  $('payMethod').value = inv.origin === 'internacional' ? 'Transferencia internacional (SWIFT)' : 'Transferencia SPEI';
+  $('payBank').value = ''; $('payRef').value = ''; $('payNotes').value = '';
+  openModal('modalPay');
+  setTimeout(() => $('payBank').focus(), 80);
+}
+async function submitPay(e) {
+  e.preventDefault();
+  const inv = findInv($('payId').value);
+  if (!inv || inv.status !== 'APROBADA') { toast('Esta factura ya no está por pagar', 'error'); closeModal('modalPay'); return; }
+  const ref = $('payRef').value.trim();
+  if (!ref) { toast('Captura el número de comprobante', 'error'); $('payRef').focus(); return; }
+  const by = (auth.tesoreria && auth.tesoreria.name) || 'Tesorería';
+
+  const payDate = $('payDate').value;
+  const payMethod = $('payMethod').value;
+  const payBank = $('payBank').value.trim();
+  const payNotes = $('payNotes').value.trim();
+
+  inv.paymentInfo = { date: payDate, method: payMethod, bank: payBank, ref, notes: payNotes, by };
+  inv.status = 'PAGADA';
+  inv.history = inv.history || [];
+  inv.history.push(H('PAGADA', new Date().toISOString(), by, 'Comprobante ' + ref));
+  save(); closeModal('modalPay'); renderAll();
+
+  if (!inv.email) { toast('Factura marcada como pagada (el proveedor no dejó correo para avisos)', 'info'); return; }
+  toast('Factura marcada como pagada. Enviando correo al proveedor...', 'info');
+
+  // Notificación por correo al proveedor (Apps Script, acción notifyPayment)
+  try {
+    const url = getDriveWebhookUrl();
+    if (!url) throw new Error('Sin URL de Apps Script');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'notifyPayment',
+        paymentData: {
+          email: inv.email,
+          supplierName: inv.supplierName,
+          autoFolio: inv.id,
+          folio: inv.folio,
+          matricula: inv.matricula || '',
+          amountFormatted: fmtMoney(inv.amount, inv.currency),
+          payDate: fmtDate(payDate),
+          payMethod: payMethod,
+          payBank: payBank,
+          payRef: ref,
+          payNotes: payNotes
+        }
+      })
+    });
+    const out = await res.json();
+    if (out && out.success) toast('Correo de pago enviado al proveedor', 'success');
+    else throw new Error((out && out.error) || 'El script no confirmó el envío');
+  } catch (err) {
+    console.warn('Error enviando notificación por correo:', err);
+    toast('Pago registrado, pero no se pudo enviar el correo: ' + err.message, 'error');
+  }
+}
+
+/* ===================== GOOGLE DRIVE ===================== */
+const getDriveWebhookUrl = () => {
+  return APPS_SCRIPT_URL;
+};
+function updateDriveStatusUI() {
+  const url = getDriveWebhookUrl();
+  const b = $('driveBadge'); if (!b) return;
+  b.className = 'ml-1 text-xs font-bold px-2 py-0.5 rounded-full ' + (url ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900');
+  b.textContent = url ? 'Conectado' : 'Sin configurar';
+}
+function saveDriveWebhookUrl() {
+  const url = $('inputDriveWebhook').value.trim();
+  try { url ? localStorage.setItem('portal_drive_webhook_url', url) : localStorage.removeItem('portal_drive_webhook_url'); } catch (e) {}
+  updateDriveStatusUI(); closeModal('modalDrive'); toast('Ajustes guardados', 'success');
+}
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    const r = new FileReader();
+    r.onload = () => resolve(typeof r.result === 'string' && r.result.includes(',') ? r.result.split(',')[1] : null);
+    r.onerror = reject; r.readAsDataURL(file);
+  });
+}
+async function uploadToGoogleDrive(inv, pdf, xml) {
+  const url = getDriveWebhookUrl(); if (!url) return { success: false };
+  try {
+    const [pdfB64, xmlB64] = await Promise.all([fileToBase64(pdf), fileToBase64(xml)]);
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
+      action: 'upload', folderId: CONFIG.driveFolderId,
+      invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '',
+        origin: inv.origin, email: inv.email || '', invoiceDate: inv.invoiceDate || '', country: inv.country || '', bankName: inv.bankName || '', swift: inv.swift || '', iban: inv.iban || '' },
+      pdf: pdf && pdfB64 ? { name: pdf.name, base64: pdfB64 } : null,
+      xml: xml && xmlB64 ? { name: xml.name, base64: xmlB64 } : null
+    }) });
+    return await res.json();
+  } catch (err) { return { success: false, error: err.message }; }
+}
+
+/* ===================== INICIO ===================== */
+window.addEventListener('DOMContentLoaded', () => {
+  $('companyLine').textContent = CONFIG.companyName;
+  setOrigin('nacional'); setCurrency('MXN');
+  updateDriveStatusUI();
+  go('supplier');
+});
+</script>
+</body>
+</html>
