@@ -345,13 +345,9 @@
       <div class="flex items-center gap-3">
         <span class="text-lg" aria-hidden="true">&#128193;</span>
         <div>
-          <p class="text-sm font-bold">Respaldo en Google Drive <span id="driveBadge" class="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">Sin configurar</span></p>
-          <p class="hint" id="driveText"></p>
+          <p class="text-sm font-bold">Respaldo en Google Drive <span id="driveBadge" class="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">Conectado</span></p>
+          <p class="hint" id="driveText">Google Sheets + Drive configurados</p>
         </div>
-      </div>
-      <div class="flex gap-2">
-        <button class="btn btn-ghost btn-sm" onclick="testDriveConnection()">Probar conexión</button>
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modalDrive')">Ajustes de Drive</button>
       </div>
     </div>
 
@@ -374,7 +370,6 @@
         </table>
       </div>
     </div>
-    <p class="text-xs text-center" style="color:var(--muted)"><button class="underline" onclick="resetDemo()">Restablecer datos de ejemplo</button></p>
   </section>
 </main>
 
@@ -461,32 +456,6 @@
   </div>
 </div>
 
-<!-- ===================== MODAL: GOOGLE DRIVE ===================== -->
-<div id="modalDrive" class="fixed inset-0 z-[60] hidden items-center justify-center p-4" style="background:rgba(16,28,43,.55)">
-  <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
-    <div class="px-6 py-4 border-b flex items-center justify-between" style="border-color:var(--line)">
-      <h3 class="font-extrabold">Respaldo en Google Drive</h3>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalDrive')">Cerrar</button>
-    </div>
-    <div class="p-6 space-y-4 overflow-y-auto scroll text-sm">
-      <p style="color:var(--muted)">Una página web no puede escribir en tu Drive con solo un enlace. Se usa un puente gratuito de Google Apps Script; pega aquí su URL.</p>
-      <div>
-        <label class="label" for="inputDriveWebhook">URL de la aplicación web (termina en /exec)</label>
-        <input class="input text-xs" type="url" id="inputDriveWebhook" placeholder="https://script.google.com/macros/s/.../exec">
-      </div>
-      <div>
-        <label class="label" for="inputDriveFolder">Carpeta de destino</label>
-        <input class="input text-xs bg-slate-100" type="text" id="inputDriveFolder" readonly>
-      </div>
-      <div id="driveTestResult" class="hidden rounded-lg p-3 text-sm"></div>
-    </div>
-    <div class="px-6 py-4 border-t bg-[#f6f8fa] flex justify-between gap-2" style="border-color:var(--line)">
-      <button class="btn btn-ghost" onclick="testDriveConnection()">Probar conexión</button>
-      <button class="btn btn-primary" onclick="saveDriveWebhookUrl()">Guardar</button>
-    </div>
-  </div>
-</div>
-
 <!-- ===================== AVISOS ===================== -->
 <div id="toast" class="fixed bottom-5 right-5 z-[70] max-w-sm flex items-start gap-3 px-4 py-3 rounded-lg shadow-xl text-sm font-semibold text-white transition-all duration-300 opacity-0 translate-y-6 pointer-events-none" style="background:var(--ink)" role="status" aria-live="polite">
   <span id="toastIcon" class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs font-bold bg-teal-500">&#10003;</span>
@@ -557,13 +526,10 @@ let files = { pdf: null, xml: null };
 let formMeta = { uuid: '', receptorRfc: '' };
 
 async function loadInvoicesFromCloud(manual = false) {
-  const url = getDriveWebhookUrl();
-  if (!url) return;
   const icon = $('syncIcon');
   if (icon) icon.classList.add('animate-spin');
   try {
-    // Usamos redirección explícita y fallback GET
-    const res = await fetch(url + '?action=getInvoices', {
+    const res = await fetch(APPS_SCRIPT_URL + '?action=getInvoices', {
       method: 'GET',
       redirect: 'follow'
     });
@@ -576,17 +542,15 @@ async function loadInvoicesFromCloud(manual = false) {
     }
   } catch (err) {
     console.warn('Error al sincronizar con Google Sheets:', err);
-    if (manual) toast('Error al conectar con la hoja de cálculo', 'error');
+    if (manual) toast('Error al conectar con Google Sheets', 'error');
   } finally {
     if (icon) icon.classList.remove('animate-spin');
   }
 }
 
 async function syncStatusToCloud(inv) {
-  const url = getDriveWebhookUrl();
-  if (!url) return;
   try {
-    await fetch(url, {
+    await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -611,12 +575,6 @@ function saveLocalBackup() {
 
 function save() {
   saveLocalBackup();
-}
-
-function resetDemo() {
-  if (!confirm('Esto borra la vista local y recarga las facturas registradas en la nube. ¿Continuar?')) return;
-  loadInvoicesFromCloud(true);
-  closeDrawer();
 }
 
 /* ===================== SESIONES ===================== */
@@ -895,12 +853,10 @@ async function submitInvoice(e) {
       history: [H('CREADA', new Date().toISOString(), 'Proveedor')]
     };
 
-    if (getDriveWebhookUrl()) {
-      toast('Guardando en Google Drive y Sheets...', 'info');
-      const res = await uploadToGoogleDrive(inv, files.pdf, files.xml);
-      if (res && res.success) {
-        inv.driveInvoiceFolderId = res.invoiceFolderId; inv.pdfDriveUrl = res.pdfUrl; inv.xmlDriveUrl = res.xmlUrl;
-      }
+    toast('Guardando en Google Drive y Sheets...', 'info');
+    const res = await uploadToGoogleDrive(inv, files.pdf, files.xml);
+    if (res && res.success) {
+      inv.driveInvoiceFolderId = res.invoiceFolderId;
     }
 
     fileStore[inv.id] = { pdf: files.pdf, xml: files.xml };
@@ -1005,7 +961,6 @@ function renderTesoreria() {
   $('tChips').innerHTML = chipsHtml(ui.tFilter, 'setTFilter', ['APROBADA', 'PAGADA', 'ALL']);
   const list = filterList(ui.tFilter, $('tSearch').value, ui.tCurrency);
   $('tBody').innerHTML = list.length ? list.map(i => rowHtml(i, 'tesoreria')).join('') : emptyRow;
-  updateDriveStatusUI();
 }
 
 /* ===================== DRAWER Y ACCIONES ===================== */
@@ -1096,10 +1051,7 @@ async function doReject(id) {
   toast('Factura rechazada. Enviando notificación por correo...', 'info');
 
   try {
-    const url = getDriveWebhookUrl();
-    if (!url) throw new Error('Sin URL de Apps Script');
-
-    const res = await fetch(url, {
+    const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1151,7 +1103,7 @@ function exportExcel() {
   if (!invoices.length) { toast('No hay facturas para exportar', 'info'); return; }
   const rows = exportRows(), name = `Paurema-Facturas-Proveedores_${todayStr()}`;
   try {
-    if (!window.window.XLSX) throw new Error('XLSX no cargó');
+    if (!window.XLSX) throw new Error('XLSX no cargó');
     const ws = XLSX.utils.json_to_sheet(rows);
     const heads = Object.keys(rows[0]);
     ws['!cols'] = heads.map(h => ({ wch: Math.min(45, Math.max(h.length + 2, ...rows.map(r => String(r[h] ?? '').length + 2))) }));
@@ -1223,9 +1175,7 @@ async function submitPay(e) {
   toast('Factura marcada como pagada. Enviando correo al proveedor...', 'info');
 
   try {
-    const url = getDriveWebhookUrl();
-    if (!url) throw new Error('Sin URL de Apps Script');
-    const res = await fetch(url, {
+    const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1256,20 +1206,6 @@ async function submitPay(e) {
 }
 
 /* ===================== GOOGLE DRIVE ===================== */
-const getDriveWebhookUrl = () => {
-  return APPS_SCRIPT_URL;
-};
-function updateDriveStatusUI() {
-  const url = getDriveWebhookUrl();
-  const b = $('driveBadge'); if (!b) return;
-  b.className = 'ml-1 text-xs font-bold px-2 py-0.5 rounded-full ' + (url ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900');
-  b.textContent = url ? 'Conectado' : 'Sin configurar';
-}
-function saveDriveWebhookUrl() {
-  const url = $('inputDriveWebhook').value.trim();
-  try { url ? localStorage.setItem('portal_drive_webhook_url', url) : localStorage.removeItem('portal_drive_webhook_url'); } catch (e) {}
-  updateDriveStatusUI(); closeModal('modalDrive'); toast('Ajustes guardados', 'success');
-}
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve(null);
@@ -1279,35 +1215,9 @@ function fileToBase64(file) {
   });
 }
 async function uploadToGoogleDrive(inv, pdf, xml) {
-  const url = getDriveWebhookUrl(); if (!url) return { success: false };
   try {
     const [pdfB64, xmlB64] = await Promise.all([fileToBase64(pdf), fileToBase64(xml)]);
-    const res = await fetch(url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({
-      action: 'upload', folderId: CONFIG.driveFolderId,
-      invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '',
-        origin: inv.origin, email: inv.email || '', invoiceDate: inv.invoiceDate || '', country: inv.country || '', bankName: inv.bankName || '', swift: inv.swift || '', iban: inv.iban || '' },
-      pdf: pdf && pdfB64 ? { name: pdf.name, base64: pdfB64 } : null,
-      xml: xml && xmlB64 ? { name: xml.name, base64: xmlB64 } : null
-    }) });
-    return await res.json();
-  } catch (err) { return { success: false, error: err.message }; }
-}
-
-/* ===================== INICIO ===================== */
-window.addEventListener('DOMContentLoaded', () => {
-  $('companyLine').textContent = CONFIG.companyName;
-  setOrigin('nacional'); setCurrency('MXN');
-  updateDriveStatusUI();
-  
-  // Sincronización inicial
-  loadInvoicesFromCloud();
-  go('supplier');
-
-  // Consulta automática en segundo plano cada 12 segundos
-  setInterval(() => {
-    loadInvoicesFromCloud(false);
-  }, 12000);
-});
-</script>
-</body>
-</html>
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: {
