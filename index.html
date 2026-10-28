@@ -1119,16 +1119,30 @@ function exportExcel() {
 }
 
 /* ===================== ELIMINAR FACTURAS ===================== */
-function doDelete(id) {
+async function doDelete(id) {
   const inv = findInv(id); if (!inv) return;
   const extra = inv.status === 'PAGADA' ? '\n\nATENCIÓN: esta factura ya está PAGADA; se perderá también el registro del pago.' : '';
-  if (!confirm(`¿Eliminar el registro ${inv.id} (factura ${inv.folio}) de ${inv.supplierName} por ${fmtMoney(inv.amount, inv.currency)}?${extra}\n\nEsta acción no se puede deshacer.`)) return;
+  if (!confirm(`¿Eliminar el registro ${inv.id} (factura ${inv.folio}) de ${inv.supplierName} por ${fmtMoney(inv.amount, inv.currency)}?${extra}\n\nEsta acción eliminará los datos y la carpeta en Google Drive.`)) return;
+
+  // Eliminación local en pantalla
   invoices = invoices.filter(i => i.id !== id);
   delete fileStore[id];
   save(); closeDrawer(); renderAll();
-  toast('Factura eliminada de la vista local', 'success');
-}
+  toast('Eliminando factura de la nube...', 'info');
 
+  // Eliminación centralizada en Google Sheets y Drive
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteInvoice', id: id })
+    });
+    toast('Factura eliminada de Sheets y Drive exitosamente', 'success');
+  } catch (err) {
+    console.warn('Error al eliminar en Sheets:', err);
+  }
+}
 /* ===================== REGISTRO DE PAGO ===================== */
 function openPay(id) {
   const inv = findInv(id); if (!inv || inv.status !== 'APROBADA') return;
