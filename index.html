@@ -143,6 +143,7 @@
           <div class="seg" role="group" aria-label="Tipo de factura">
             <button id="segNacional" type="button" onclick="setOrigin('nacional')" aria-pressed="true">Nacional (CFDI)</button>
             <button id="segInternacional" type="button" onclick="setOrigin('internacional')" aria-pressed="false">Internacional</button>
+            <button id="segSinFactura" type="button" onclick="setOrigin('sinfactura')" aria-pressed="false">Sin factura</button>
           </div>
         </div>
 
@@ -198,7 +199,7 @@
                 <label class="label" for="supplierName" id="lblSupplier">Razón social</label>
                 <input class="input" type="text" id="supplierName" required placeholder="Ej. Soluciones Logísticas S.A. de C.V.">
               </div>
-              <div>
+              <div id="wrapRfc">
                 <label class="label" for="supplierRfc" id="lblRfc">RFC</label>
                 <input class="input uppercase" type="text" id="supplierRfc" required placeholder="Ej. SLO180412XYZ">
               </div>
@@ -220,7 +221,7 @@
                   </div>
                 </div>
               </div>
-              <div>
+              <div id="wrapPo">
                 <label class="label" for="invoicePo">Orden de compra</label>
                 <input class="input" type="text" id="invoicePo" placeholder="Ej. OC-2026-88">
               </div>
@@ -229,7 +230,7 @@
                 <input class="input" type="text" id="invoiceMatricula" maxlength="12" autocapitalize="characters" style="text-transform:uppercase" placeholder="Ej. XA-ABC">
               </div>
               <div>
-                <label class="label" for="invoiceDate">Fecha de la factura</label>
+                <label class="label" for="invoiceDate" id="lblDate">Fecha de la factura</label>
                 <input class="input" type="date" id="invoiceDate">
               </div>
               <div class="md:col-span-2">
@@ -709,24 +710,36 @@ function setCurrency(c) {
 }
 function setOrigin(o) {
   origin = o;
-  const nac = o === 'nacional';
+  const nac = o === 'nacional', intl = o === 'internacional', sf = o === 'sinfactura';
   $('segNacional').setAttribute('aria-pressed', nac);
-  $('segInternacional').setAttribute('aria-pressed', !nac);
-  $('intlBlock').classList.toggle('hidden', nac);
-  $('formTitle').textContent = nac ? 'Factura nacional' : 'Factura internacional';
+  $('segInternacional').setAttribute('aria-pressed', intl);
+  $('segSinFactura').setAttribute('aria-pressed', sf);
+  $('intlBlock').classList.toggle('hidden', !intl);
+  $('formTitle').textContent = nac ? 'Factura nacional' : (intl ? 'Factura internacional' : 'Gasto sin factura');
   $('formSubtitle').textContent = nac
     ? 'Sube el PDF y el XML; los datos se llenan solos y tú los confirmas.'
-    : 'Sube tu invoice en PDF y confirma los datos. Indica dónde recibirás la transferencia.';
-  $('lblSupplier').textContent = nac ? 'Razón social' : 'Nombre de la empresa';
+    : (intl ? 'Sube tu invoice en PDF y confirma los datos. Indica dónde recibirás la transferencia.'
+      : 'Para gastos con ticket o sin comprobante. Sube el ticket si lo tienes (opcional) y describe el gasto.');
+  $('lblSupplier').textContent = nac ? 'Razón social' : (intl ? 'Nombre de la empresa' : 'Comercio o persona a pagar');
   $('lblRfc').textContent = nac ? 'RFC' : 'Tax ID, EIN o VAT';
-  $('lblFolio').textContent = nac ? 'Folio de la factura' : 'Número de invoice';
+  $('lblFolio').textContent = nac ? 'Folio de la factura' : (intl ? 'Número de invoice' : 'Número de ticket (opcional)');
+  $('lblDate').textContent = sf ? 'Fecha del gasto' : 'Fecha de la factura';
+  ['wrapRfc', 'wrapPo'].forEach(id => $(id).classList.toggle('hidden', sf));
+  $('xmlZone').classList.toggle('hidden', sf);
+  $('supplierRfc').required = !sf; $('invoiceFolio').required = !sf; $('supplierEmail').required = !sf; $('invoiceDate').required = sf;
+  $('pdfInput').accept = sf ? '.pdf,image/*' : '.pdf,application/pdf';
+  if (!files.pdf) {
+    $('pdfLabel').textContent = sf ? 'Foto o PDF del ticket (opcional)' : 'Factura en PDF';
+    $('pdfSub').textContent = sf ? 'Si no tienes ticket, déjalo vacío y explica el gasto en el concepto.' : 'Arrastra el archivo o haz clic. Leemos el texto para llenar los campos.';
+  }
   $('xmlInput').accept = nac ? '.xml,text/xml' : '.pdf,.xml,image/*';
   if (!files.xml) {
     $('xmlLabel').textContent = nac ? 'Comprobante fiscal (XML)' : 'Soporte fiscal (W-8, contrato u otro)';
     $('xmlSub').textContent = nac ? 'Es la fuente más confiable: trae RFC, folio fiscal, importe y moneda.' : 'Opcional. Acepta PDF, XML o imagen.';
   }
-  if (!$('invoiceAmount').value) setCurrency(nac ? 'MXN' : 'USD');
+  if (!$('invoiceAmount').value) setCurrency(intl ? 'USD' : 'MXN');
 }
+function acceptTicket(f) { files.pdf = f; setDropState('pdf', f); $('extractCard').classList.add('hidden'); }
 function flash(id) { const el = $(id); if (!el) return; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400); }
 function fill(id, val) { if (val === undefined || val === null || val === '') return; $(id).value = val; flash(id); }
 
@@ -743,9 +756,9 @@ function dzLeave(e, id) { e.preventDefault(); $(id).classList.remove('over'); }
 function dzDrop(e, kind) {
   e.preventDefault(); $(kind + 'Zone').classList.remove('over');
   const f = e.dataTransfer?.files?.[0]; if (!f) return;
-  kind === 'pdf' ? processPdfFile(f) : processSupportFile(f);
+  kind === 'pdf' ? (origin === 'sinfactura' ? acceptTicket(f) : processPdfFile(f)) : processSupportFile(f);
 }
-function onPdfChosen(e) { const f = e.target.files?.[0]; if (f) processPdfFile(f); }
+function onPdfChosen(e) { const f = e.target.files?.[0]; if (f) origin === 'sinfactura' ? acceptTicket(f) : processPdfFile(f); }
 function onXmlChosen(e) { const f = e.target.files?.[0]; if (f) processSupportFile(f); }
 
 function showExtract(source, fileName, o) {
@@ -878,11 +891,12 @@ async function submitInvoice(e) {
   const v = id => $(id).value.trim();
   const rfc = v('supplierRfc').toUpperCase(), folio = v('invoiceFolio'), amount = parseFloat($('invoiceAmount').value);
 
-  if (!files.pdf) { toast('Adjunta el PDF de la factura', 'error'); return; }
+  const sf = origin === 'sinfactura';
+  if (!sf && !files.pdf) { toast('Adjunta el PDF de la factura', 'error'); return; }
   if (origin === 'nacional' && !files.xml) { toast('Adjunta el XML del CFDI', 'error'); return; }
 
   const draft = { rfc, folio, uuid: formMeta.uuid };
-  const dup = findDuplicate(draft);
+  const dup = sf ? null : findDuplicate(draft);
   if (dup) { toast(`Ya existe la factura ${dup.folio} de este proveedor.`, 'error'); return; }
 
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
@@ -899,7 +913,7 @@ async function submitInvoice(e) {
 
     const inv = {
       id: autoFolio,
-      origin, supplierName: v('supplierName'), rfc, email: v('supplierEmail'), folio,
+      origin, supplierName: v('supplierName'), rfc: sf ? 'S/F' : rfc, email: v('supplierEmail'), folio: sf ? (folio || 'S/F') : folio,
       uuid: formMeta.uuid, receptorRfc: formMeta.receptorRfc,
       poNumber: v('invoicePo'), matricula: v('invoiceMatricula').toUpperCase(), amount, currency: formCurrency,
       country: origin === 'internacional' ? v('supplierCountry') : 'México',
@@ -907,7 +921,7 @@ async function submitInvoice(e) {
       swift: origin === 'internacional' ? v('supplierSwift').toUpperCase() : '',
       iban: origin === 'internacional' ? v('supplierIban') : '',
       concept: v('invoiceConcept'), invoiceDate: $('invoiceDate').value || '', submissionDate: todayStr(),
-      pdfFile: files.pdf.name, xmlFile: files.xml ? files.xml.name : '',
+      pdfFile: files.pdf ? files.pdf.name : '', xmlFile: files.xml ? files.xml.name : '',
       pdfDriveUrl: null, xmlDriveUrl: null, driveInvoiceFolderId: null,
       status: 'PENDIENTE', rejectionReason: null, approval: null, paymentInfo: null,
       history: [H('CREADA', new Date().toISOString(), 'Proveedor')]
@@ -923,7 +937,7 @@ async function submitInvoice(e) {
     invoices.unshift(inv); save(); renderNav();
 
     $('successCode').textContent = inv.id;
-    $('successText').textContent = `${inv.supplierName}, folio de factura ${inv.folio} por ${fmtMoney(inv.amount, inv.currency)}. Gerencia ya puede revisarla.`;
+    $('successText').textContent = `${inv.supplierName}, ${sf ? 'gasto sin factura' + (inv.folio !== 'S/F' ? ' (ticket ' + inv.folio + ')' : '')  : 'folio de factura ' + inv.folio} por ${fmtMoney(inv.amount, inv.currency)}. Gerencia ya puede revisarlo.`;
     $('formWrap').classList.add('hidden'); $('successCard').classList.remove('hidden');
     $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id;
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -938,7 +952,6 @@ function resetForm() {
   $('invoiceForm').reset();
   files = { pdf: null, xml: null }; formMeta = { uuid: '', receptorRfc: '' };
   ['pdf', 'xml'].forEach(k => { $(k + 'Zone').classList.remove('done'); $(k + 'Input').value = ''; });
-  $('pdfLabel').textContent = 'Factura en PDF';
   $('extractCard').classList.add('hidden');
   setOrigin(origin);
 }
@@ -991,7 +1004,7 @@ function kpi(title, count, list) {
 function rowHtml(inv, role) {
   return `<tr class="clickable" onclick="openDrawer('${inv.id}')">
     <td><span class="font-bold text-teal-800 bg-teal-50 px-2 py-1 rounded text-xs">${esc(inv.id)}</span></td>
-    <td><p class="font-bold">${esc(shortFolio(inv.folio))}</p></td>
+    <td><p class="font-bold">${esc(shortFolio(inv.folio))}</p>${inv.origin === 'sinfactura' ? '<span class="text-xs font-bold px-2 py-0.5 rounded" style="background:#fff1f3;color:#c01048">SIN FACTURA</span>' : ''}</td>
     <td><p class="font-semibold">${esc(inv.supplierName)}</p><p class="text-xs" style="color:var(--muted)">${esc(inv.rfc)}</p></td>
     <td class="text-xs">${fmtDate(inv.submissionDate)}</td>
     <td class="text-xs"><p class="truncate max-w-[200px]">${esc(inv.concept)}</p></td>
@@ -1158,7 +1171,7 @@ function exportRows() {
     const p = i.paymentInfo || {}, a = i.approval || {};
     return {
       'ID Interno': i.id, 'Folio del emisor': i.folio, 'UUID': i.uuid || '', 'Proveedor': i.supplierName, 'RFC': i.rfc,
-      'Origen': i.origin === 'internacional' ? 'Internacional' : 'Nacional', 'País': i.country || '',
+      'Origen': i.origin === 'internacional' ? 'Internacional' : (i.origin === 'sinfactura' ? 'Sin factura' : 'Nacional'), 'País': i.country || '',
       'Fecha de factura': isoD(i.invoiceDate), 'Fecha recibida': isoD(i.submissionDate),
       'Orden de compra': i.poNumber || '', 'Matrícula': i.matricula || '', 'Concepto': i.concept || '',
       'Moneda': i.currency, 'Monto': Number(i.amount) || 0,
