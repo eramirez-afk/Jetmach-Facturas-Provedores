@@ -526,13 +526,11 @@
    CONFIGURACIÓN DEL SISTEMA Y CLAVES DE ACCESO
    ===================================================================== */
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAihAR2H_bBBx69lVOtoRyjxXDQYdBpwXAMKoNbn1x3KqbNbvyYOkRz/exec'; // <-- URL /exec del script de PRUEBA (no la de producción)
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9aGLQD5pbASAihAR2H_bBBx69lVOtoRyjxXDQYdBpwXAMKoNbn1x3KqbNbvyYOkRz/exec';
 
 const CONFIG = {
   companyName: 'Jet Mach Mexico, S.A. de C.V.',
   companyRfc: 'JMM040707HL9',
-  pins: { gerente: '246810', tesoreria: '159753' }, // CLAVES DE ACCESO
-  driveFolderId: '1YDis04HIPM9rxU5De15Hu8syV5JeWUYz',
   storageKey: 'portal_facturas_v2'
 };
 
@@ -584,24 +582,29 @@ let origin = 'nacional', formCurrency = 'MXN';
 let files = { pdf: null, xml: null };
 let formMeta = { uuid: '', receptorRfc: '' };
 
+async function api(body) {
+  const r = await fetch(APPS_SCRIPT_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  return r.json();
+}
+const roleOf = () => (auth.gerente ? 'gerente' : (auth.tesoreria ? 'tesoreria' : null));
+const actRole = () => (ui.view === 'tesoreria' && auth.tesoreria ? 'tesoreria' : (ui.view === 'gerente' && auth.gerente ? 'gerente' : roleOf()));
+const cred = role => ({ role, pin: (auth[role] && auth[role].pin) || '' });
+function sessionExpired(out) {
+  auth = { gerente: null, tesoreria: null }; saveAuth(); invoices = []; incomes = []; closeDrawer(); go('supplier');
+  toast(out && out.locked ? 'Demasiados intentos fallidos. Espera unos minutos.' : 'Tu sesión ya no es válida. Entra de nuevo.', 'error');
+}
 async function loadInvoicesFromCloud(manual = false) {
+  const role = roleOf(); if (!role) return;
   const icon = $('syncIcon');
   if (icon) icon.classList.add('animate-spin');
   try {
-    const res = await fetch(APPS_SCRIPT_URL + '?action=getInvoices', {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    const out = await res.json();
+    const out = await api({ action: 'getInvoices', ...cred(role) });
     if (out && out.success && Array.isArray(out.invoices)) {
-      invoices = out.invoices;
-      saveLocalBackup();
-      renderAll();
+      invoices = out.invoices; renderAll();
       if (manual) toast('Facturas sincronizadas desde Sheets', 'success');
-    }
+    } else if (out && out.unauthorized) { sessionExpired(out); }
   } catch (err) {
-    console.warn('Error al sincronizar con Google Sheets:', err);
-    if (manual) toast('Error al conectar con Google Sheets', 'error');
+    if (manual) toast('No se pudo sincronizar con Google Sheets', 'error');
   } finally {
     if (icon) icon.classList.remove('animate-spin');
   }
@@ -609,21 +612,9 @@ async function loadInvoicesFromCloud(manual = false) {
 
 async function syncStatusToCloud(inv) {
   try {
-    await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'updateStatus',
-        id: inv.id,
-        status: inv.status,
-        rejectionReason: inv.rejectionReason,
-        paymentInfo: inv.paymentInfo,
-        history: inv.history,
-        expenseType: inv.expenseType,
-        businessLine: inv.businessLine
-      })
-    });
+    const out = await api({ action: 'updateStatus', ...cred(actRole()), id: inv.id, status: inv.status, rejectionReason: inv.rejectionReason,
+      paymentInfo: inv.paymentInfo, history: inv.history, expenseType: inv.expenseType, businessLine: inv.businessLine });
+    if (out && out.unauthorized) { sessionExpired(out); return; }
     setTimeout(() => loadInvoicesFromCloud(), 1200);
   } catch (err) {
     console.warn('Error al actualizar estatus en Google Sheets:', err);
@@ -631,7 +622,7 @@ async function syncStatusToCloud(inv) {
 }
 
 function saveLocalBackup() {
-  try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(invoices)); } catch (e) {}
+  /* las facturas ya no se guardan en el navegador */
 }
 
 function save() {
@@ -652,18 +643,28 @@ function openLogin(role) {
   openModal('modalLogin');
   setTimeout(() => ($('loginName').value ? $('loginPin') : $('loginName')).focus(), 80);
 }
-function submitLogin(e) {
+async function submitLogin(e) {
   e.preventDefault();
   const name = $('loginName').value.trim(), pin = $('loginPin').value.trim();
-  if (pin !== CONFIG.pins[loginRole]) { $('loginError').classList.remove('hidden'); $('loginPin').focus(); return; }
-  auth[loginRole] = { name }; saveAuth();
-  try { localStorage.setItem('portal_last_name', name); } catch (err) {}
-  closeModal('modalLogin');
-  go(loginRole);
-  toast(`Bienvenido, ${name}`, 'success');
+  const btn = e.submitter || null; if (btn) btn.disabled = true;
+  try {
+    const out = await api({ action: 'login', role: loginRole, pin });
+    if (!out || !out.success) {
+      $('loginError').textContent = out && out.locked ? 'Demasiados intentos fallidos. Espera unos minutos.' : 'La clave no es correcta. Inténtalo de nuevo.';
+      $('loginError').classList.remove('hidden'); $('loginPin').focus(); return;
+    }
+    auth[loginRole] = { name, pin }; saveAuth();
+    try { localStorage.setItem('portal_last_name', name); } catch (err) {}
+    closeModal('modalLogin');
+    go(loginRole);
+    loadInvoicesFromCloud(); if (loginRole === 'tesoreria') loadIncomeFromCloud();
+    toast(`Bienvenido, ${name}`, 'success');
+  } catch (err) {
+    $('loginError').textContent = 'No se pudo conectar con el servidor. Inténtalo de nuevo.'; $('loginError').classList.remove('hidden');
+  } finally { if (btn) btn.disabled = false; }
 }
 function logout() {
-  auth = { gerente: null, tesoreria: null }; saveAuth(); closeDrawer(); go('supplier'); toast('Sesión cerrada', 'info');
+  auth = { gerente: null, tesoreria: null }; saveAuth(); invoices = []; incomes = []; closeDrawer(); go('supplier'); toast('Sesión cerrada', 'info');
 }
 
 /* ===================== NAVEGACIÓN Y PESTAÑAS ===================== */
@@ -901,18 +902,8 @@ async function submitInvoice(e) {
 
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
-    let maxNum = 0;
-    invoices.forEach(i => {
-      const match = (i.id || '').match(/FAC-(\d+)/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    });
-    const autoFolio = 'FAC-' + String(maxNum + 1).padStart(4, '0');
-
     const inv = {
-      id: autoFolio,
+      id: '',
       origin, supplierName: v('supplierName'), rfc: sf ? 'S/F' : rfc, email: v('supplierEmail'), folio: sf ? (folio || 'S/F') : folio,
       uuid: formMeta.uuid, receptorRfc: formMeta.receptorRfc,
       poNumber: v('invoicePo'), matricula: v('invoiceMatricula').toUpperCase(), amount, currency: formCurrency,
@@ -929,20 +920,19 @@ async function submitInvoice(e) {
 
     toast('Guardando en Google Drive y Sheets...', 'info');
     const res = await uploadToGoogleDrive(inv, files.pdf, files.xml);
-    if (res && res.success) {
-      inv.driveInvoiceFolderId = res.invoiceFolderId;
+    if (!res || !res.success) {
+      toast(res && res.duplicate ? res.error : 'No se pudo registrar. Revisa tu conexión e inténtalo de nuevo.', 'error');
+      return;
     }
-
+    inv.id = res.id; inv.driveInvoiceFolderId = res.invoiceFolderId;
     fileStore[inv.id] = { pdf: files.pdf, xml: files.xml };
-    invoices.unshift(inv); save(); renderNav();
+    renderNav();
 
     $('successCode').textContent = inv.id;
     $('successText').textContent = `${inv.supplierName}, ${sf ? 'gasto sin factura' + (inv.folio !== 'S/F' ? ' (ticket ' + inv.folio + ')' : '')  : 'folio de factura ' + inv.folio} por ${fmtMoney(inv.amount, inv.currency)}. Gerencia ya puede revisarlo.`;
     $('formWrap').classList.add('hidden'); $('successCard').classList.remove('hidden');
     $('trackRfc').value = inv.rfc; $('trackFolio').value = inv.id;
     window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    setTimeout(() => loadInvoicesFromCloud(), 1500);
 
   } catch (err) {
     console.error(err); toast('No se pudo registrar la factura', 'error');
@@ -962,11 +952,14 @@ function routeHtml(inv) {
   const reached = { PENDIENTE: 0, APROBADA: 1, PAGADA: 2, RECHAZADA: 0 }[inv.status];
   return `<div class="flex items-center"><span class="w-4 h-4 rounded-full bg-teal-500"></span><span class="wp-line mx-2 ${reached > 0 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 1 ? 'bg-teal-500' : 'bg-gray-300'}"></span><span class="wp-line mx-2 ${reached > 1 ? 'done' : ''}"></span><span class="w-4 h-4 rounded-full ${reached >= 2 ? 'bg-teal-500' : 'bg-gray-300'}"></span></div>`;
 }
-function doTrack(e) {
+async function doTrack(e) {
   e.preventDefault();
-  const rfc = $('trackRfc').value.trim().toUpperCase(), folio = $('trackFolio').value.trim().toLowerCase();
-  const res = invoices.filter(i => i.rfc.toUpperCase() === rfc && (i.folio.toLowerCase() === folio || i.id.toLowerCase() === folio || (i.uuid || '').toLowerCase() === folio));
+  const rfc = $('trackRfc').value.trim().toUpperCase(), folio = $('trackFolio').value.trim();
   const box = $('trackResult');
+  box.innerHTML = `<div class="panel p-6 text-sm">Consultando...</div>`;
+  let res = [];
+  try { const out = await api({ action: 'track', rfc, folio }); res = (out && out.results) || []; }
+  catch (err) { box.innerHTML = `<div class="panel p-6 text-sm"><p class="font-bold">No se pudo consultar. Inténtalo de nuevo.</p></div>`; return; }
   if (!res.length) {
     box.innerHTML = `<div class="panel p-6 text-sm"><p class="font-bold">No encontramos esa factura.</p></div>`;
     return;
@@ -1140,7 +1133,7 @@ async function doReject(id) {
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
-        action: 'notifyRejection',
+        action: 'notifyRejection', ...cred('gerente'),
         rejectionData: {
           email: inv.email,
           supplierName: inv.supplierName,
@@ -1229,7 +1222,7 @@ async function doDelete(id) {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'deleteInvoice', id: id })
+      body: JSON.stringify({ action: 'deleteInvoice', ...cred('tesoreria'), id: id })
     });
     toast('Factura eliminada de Sheets y Drive exitosamente', 'success');
   } catch (err) {
@@ -1300,7 +1293,7 @@ async function submitPay(e) {
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
-        action: 'notifyPayment',
+        action: 'notifyPayment', ...cred('tesoreria'),
         paymentData: {
           email: inv.email,
           supplierName: inv.supplierName,
@@ -1342,7 +1335,7 @@ async function uploadToGoogleDrive(inv, pdf, xml) {
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
-        action: 'upload', folderId: CONFIG.driveFolderId,
+        action: 'upload',
         invoiceData: { folio: inv.folio, autoFolio: inv.id, supplierName: inv.supplierName, rfc: inv.rfc, amount: inv.amount, currency: inv.currency, concept: inv.concept, poNumber: inv.poNumber, matricula: inv.matricula || '',
           origin: inv.origin, email: inv.email || '', invoiceDate: inv.invoiceDate || '', country: inv.country || '', bankName: inv.bankName || '', swift: inv.swift || '', iban: inv.iban || '' },
         pdf: pdf && pdfB64 ? { name: pdf.name, base64: pdfB64 } : null,
@@ -1366,12 +1359,13 @@ function setTTab(t) {
 async function loadIncomeFromCloud(manual = false) {
   if (!auth.tesoreria) return;
   try {
-    const o = await (await fetch(APPS_SCRIPT_URL + '?action=getIncome', { method: 'GET', redirect: 'follow' })).json();
+    const o = await api({ action: 'getIncome', ...cred('tesoreria') });
     if (o && o.success && Array.isArray(o.incomes)) { incomes = o.incomes; renderIncome(); }
+    else if (o && o.unauthorized) { sessionExpired(o); }
   } catch (e) { if (manual) toast('No se pudieron cargar los ingresos', 'error'); }
 }
 async function postIncome(body) {
-  const r = await fetch(APPS_SCRIPT_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  const r = await fetch(APPS_SCRIPT_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...body, ...cred('tesoreria') }) });
   return r.json();
 }
 function incSum(list) { const t = { MXN: 0, USD: 0 }; list.forEach(i => { t[i.currency] = (t[i.currency] || 0) + (Number(i.total) || 0); }); return `${fmtMoney(t.MXN, 'MXN')} &middot; ${fmtMoney(t.USD, 'USD')}`; }
@@ -1498,6 +1492,7 @@ async function deleteIncome(id) {
 window.addEventListener('DOMContentLoaded', () => {
   $('companyLine').textContent = CONFIG.companyName;
   setOrigin('nacional'); setCurrency('MXN');
+  try { localStorage.removeItem(CONFIG.storageKey); } catch (e) {}
   
   // 1. Carga inicial desde la nube
   loadInvoicesFromCloud();
